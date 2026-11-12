@@ -11,6 +11,19 @@ A browser-based 3D point cloud platform for surveying and construction, built as
 | Specs | [`docs/specs/`](docs/specs/): acceptance criteria from GSI/MLIT primary sources |
 | Architecture & AWS cost | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 
+![Simple-Point Lite: 3 M-point synthetic Toyosu construction site with control points (基準点) and RTK photo frustums](docs/screenshots/01-overview.jpg)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Distance measurement on the ramp](docs/screenshots/03-measure-ramp.jpg) **Measuring the ramp:** 30.0324 m at 5.010 % (truth 5 %). ΔX(north)/ΔY(east)/ΔH to 0.1 mm, lat/lon and JPGEO2024 geoid height for the picked point. | ![Cross-section and 2D CAD profile](docs/screenshots/04-section-profile.jpg) **Cross-section through the pit:** true-scale CAD profile with the 1:0.5 walls, the floor and the over-dig dip. Slab highlighted in 3D. |
+| ![Stockpile volume](docs/screenshots/05-volume-stockpile.jpg) **Cut/fill:** exact TIN on the cleaned scan gives 351.949 m³ against the analytic 351.858 m³ (+0.026 %). | ![Change detection](docs/screenshots/06-change-detection.jpg) **Change detection, epoch A → B:** the −45 mm settlement bowl and the stockpile removal. |
+| ![As-built inspection](docs/screenshots/07-asbuilt-inspection.jpg) **As-built (出来形) check against the design TIN:** FAIL, with 116 points beyond ±150 mm at the over-dig. | ![Photo overlay](docs/screenshots/08-photo-overlay.jpg) **RTK photo view:** camera placed from EXIF GPS + XMP orientation, photo aligned with the cloud (≤ 0.25 px). |
+| ![Elevation colour map](docs/screenshots/02-elevation.jpg) **Elevation colouring** (Turbo), LOD HUD with point budget. | ![3D Gaussian Splatting](docs/screenshots/09-gaussian-splats.jpg) **3D Gaussian Splatting layer:** 400 k Gaussians converted from the cloud, rendered with Spark. |
+
+Screenshots are produced by `scripts/screenshots.py`, which drives the running app in headless Chrome through real mouse input.
+
 ## Features
 
 - **Viewer:** streaming octree LOD with a point budget (0.25–10 M), frustum culling, LRU cache, adaptive point size, Eye-Dome Lighting. FPS / points / nodes / GPU-memory HUD. Colour by RGB, elevation, intensity, classification or ΔZ.

@@ -225,3 +225,11 @@ Not yet verified: real-time FPS on a visible GPU window (the pane was hidden dur
 - **Real-time FPS was not measured on a visible GPU window.** The browser pane was hidden during automated checks, and the HUD FPS figures came from manual frame stepping.
 - **SfM spike (pycolmap) not done** (stretch). Umeyama georeferencing, its core maths, is implemented and tested.
 - EN/日本語 UI label toggle (stretch) not done. The GitHub repo isn't pushed, so the CI workflow hasn't run on GitHub yet.
+
+---
+
+## README screenshots (2026-11-12)
+- `scripts/screenshots.py` drives the running dev app in headless Chrome (Playwright with the installed Chrome, no browser download) through **real mouse clicks**: Distance, Section, Volume, Clean, Change, As-built, photo view, 3DGS. So the screenshots double as an end-to-end run on a fresh seed.
+- The fresh run reproduced the earlier numbers exactly: ramp 30.0324 m / 5.010 %, stockpile TIN on the cleaned scan 351.949 m³, as-built FAIL with 116 flat points beyond ±150 mm.
+- The PNGs were 12 MB (noisy point clouds compress badly); they're stored as quality-85 JPEG instead (2.6 MB).
+- The first CI run on GitHub (after the push) passed: backend, frontend and infra jobs.
