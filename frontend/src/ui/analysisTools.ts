@@ -7,6 +7,7 @@ import type { OverlayItem } from "../engine/Overlay";
 import type { Vec3 } from "../engine/types";
 import { useStore } from "../store";
 import { getEngine } from "./engineRef";
+import { usePhotos } from "./photoStore";
 
 export interface ProfileData {
   length: number;
@@ -127,6 +128,13 @@ export function extraOverlay(): OverlayItem[] {
     }
   }
   if (volumePolygon) items.push({ id: "vol", kind: "polygon", points: volumePolygon, color: "#ffd166", label: "volume" });
+  const ph = usePhotos.getState();
+  if (ph.showFrustums) {
+    for (const p of ph.photos) {
+      const sel = ph.active?.id === p.id;
+      items.push({ id: `ph${p.id}`, kind: "frustum", points: [p.center, ...p.frustum], color: sel ? "#ffd166" : "#f8961e", label: sel ? p.filename : undefined });
+    }
+  }
   if (showControlPoints) {
     for (const c of controlPoints) items.push({ id: `cp${c.number}`, kind: "point", points: [[c.E, c.N, c.H]], color: "#ef476f", label: c.name });
   }

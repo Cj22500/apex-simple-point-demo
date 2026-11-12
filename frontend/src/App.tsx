@@ -3,6 +3,7 @@ import { api } from "./api/client";
 import { useStore } from "./store";
 import { AnalysisPanel, ProfileDrawer } from "./ui/AnalysisPanel";
 import { Hud, LayerPanel, MeasurementPanel, StatusBar, Toolbar } from "./ui/panels";
+import { PhotoOverlay, PhotoPanel } from "./ui/PhotoPanel";
 import { Viewer } from "./ui/Viewer";
 
 export default function App() {
@@ -34,12 +35,14 @@ export default function App() {
       <LayerPanel />
       <main className="stage">
         <Viewer />
+        <PhotoOverlay />
         <Hud />
         <ProfileDrawer />
       </main>
       <aside className="panel right">
         <MeasurementPanel />
         <AnalysisPanel />
+        <PhotoPanel />
       </aside>
       <StatusBar />
     </div>

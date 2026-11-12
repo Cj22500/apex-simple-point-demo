@@ -13,6 +13,7 @@ import type { LodView, Plane } from "./lod";
 import { Overlay, type OverlayItem } from "./Overlay";
 import { PointCloudLayer, POINTS_LAYER, type NodeFetcher, type NodeRuntime, type SharedUniforms, type SlotRegistry } from "./PointCloudLayer";
 import { edlFragment, edlVertex } from "./shaders";
+import { SplatLayer } from "./SplatLayer";
 import type { Hierarchy, Vec3 } from "./types";
 
 export type ColorMode = "rgb" | "elevation" | "intensity" | "classification" | "change";
@@ -62,6 +63,8 @@ export class PointCloudEngine {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
   readonly overlay = new Overlay();
+  readonly splats: SplatLayer;
+  private fetchers = new Map<string, NodeFetcher>();
   private labels: CSS2DRenderer;
   private layers = new Map<string, PointCloudLayer>();
   private origin: Vec3 | null = null;
@@ -81,6 +84,7 @@ export class PointCloudEngine {
   private edlCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private edlMaterial: THREE.ShaderMaterial;
   private resizeObserver: ResizeObserver;
+  private photoMode = false;
   settings: EngineSettings = {
     colorMode: "rgb",
     pointBudget: 2_000_000,
@@ -145,6 +149,7 @@ export class PointCloudEngine {
     };
 
     this.scene.add(this.overlay.group);
+    this.splats = new SplatLayer(this.scene, this.renderer);
 
     this.edlTarget = new THREE.WebGLRenderTarget(1, 1, { depthTexture: new THREE.DepthTexture(1, 1) });
     this.edlMaterial = new THREE.ShaderMaterial({
@@ -177,7 +182,9 @@ export class PointCloudEngine {
     return this.origin;
   }
 
-  addLayer(datasetId: string, hierarchy: Hierarchy): PointCloudLayer {
+  /** fetcher: optional per-layer node source (e.g. an in-memory offline octree). */
+  addLayer(datasetId: string, hierarchy: Hierarchy, fetcher?: NodeFetcher): PointCloudLayer {
+    if (fetcher) this.fetchers.set(datasetId, fetcher);
     if (!this.origin) {
       const m = hierarchy.bounds.min;
       this.origin = [Math.floor(m[0]), Math.floor(m[1]), 0];
@@ -214,6 +221,7 @@ export class PointCloudEngine {
     l.dispose();
     this.scene.remove(l.group);
     this.layers.delete(datasetId);
+    this.fetchers.delete(datasetId);
   }
 
   setLayerVisible(datasetId: string, visible: boolean) {
@@ -299,6 +307,34 @@ export class PointCloudEngine {
   resetFov() {
     this.camera.fov = 55;
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Put the camera exactly at a photo's pose. rows = world->camera rotation rows [right, down,
+   * forward] (OpenCV convention, see backend core/photos.py). Orbit controls are suspended because
+   * they cannot represent a nadir view with a Z-up camera (gimbal singularity).
+   */
+  enterPhotoView(center: Vec3, rows: readonly (readonly [number, number, number])[], vfovDeg: number) {
+    if (!this.origin) return;
+    const [right, down, fwd] = rows.map((r) => new THREE.Vector3(r[0], r[1], r[2]));
+    const basis = new THREE.Matrix4().makeBasis(right!, down!.clone().negate(), fwd!.clone().negate());
+    this.photoMode = true;
+    this.controls.enabled = false;
+    this.camera.position.set(center[0] - this.origin[0], center[1] - this.origin[1], center[2] - this.origin[2]);
+    this.camera.quaternion.setFromRotationMatrix(basis);
+    this.camera.fov = vfovDeg;
+    this.camera.updateProjectionMatrix();
+  }
+
+  exitPhotoView() {
+    if (!this.photoMode) return;
+    this.photoMode = false;
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    this.controls.target.copy(this.camera.position.clone().add(fwd.multiplyScalar(30)));
+    this.camera.up.set(0, 0, 1);
+    this.controls.enabled = true;
+    this.resetFov();
+    this.controls.update();
   }
 
   /** Absolute [E, N, H] -> CSS pixel position in the viewer (null if behind the camera). */
@@ -401,7 +437,7 @@ export class PointCloudEngine {
       const { layer, node } = this.queue.shift()!;
       if (node.state !== "queued") continue;
       this.inflight++;
-      layer.load(node, this.fetchNode).finally(() => {
+      layer.load(node, this.fetchers.get(layer.datasetId) ?? this.fetchNode).finally(() => {
         this.inflight--;
         this.pump();
       });
@@ -418,7 +454,7 @@ export class PointCloudEngine {
     if (canvas.clientWidth !== this.container.clientWidth || canvas.clientHeight !== this.container.clientHeight) {
       this.resize(); // ResizeObserver can miss changes while the page is hidden
     }
-    this.controls.update();
+    if (!this.photoMode) this.controls.update();
     this.camera.updateMatrixWorld();
 
     const h = canvas.clientHeight || 1;
@@ -478,6 +514,7 @@ export class PointCloudEngine {
     this.resizeObserver.disconnect();
     for (const id of [...this.layers.keys()]) this.removeLayer(id);
     this.overlay.clear();
+    this.splats.dispose();
     this.controls.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

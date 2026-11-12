@@ -169,3 +169,30 @@ Not yet verified: real-time FPS on a visible GPU window (the pane was hidden dur
 | Section across the pit | pad 3 m, 1:0.5 walls (measured −1.955 vs −1.994 along the skewed line), floor 0 m, defect visible |
 | Change A→B (cleaned) | 15.1 s; settlement bowl and stockpile removal visible; walls unsupported |
 | As-built (cleaned A) | FAIL: 116 flat points beyond ±150 mm at the over-dig; slope PASS; density 600/600 |
+
+---
+
+## Phase 7: photo integration and 3D Gaussian Splatting (2026-11-12)
+
+### Spec → acceptance criteria
+- Pose from EXIF GPS (lat/lon/ellipsoidal h) + DJI-style XMP (yaw/pitch/roll, intrinsics), through JGD2011 Zone IX + JPGEO2024: camera position ≤ 1 mm, control-point reprojection ≤ 0.5 px vs the true pose.
+- Photo view: the image overlay and the 3D projection of the same world point agree on screen.
+- 3DGS PLY: INRIA attribute layout, positions ≤ 0.1 mm, colours round-trip.
+
+### Implementation
+- `core/photos.py`: pinhole model (OpenCV camera frame, yaw from north, pitch −90 = nadir), z-buffer software renderer, so synthetic photos really show the cloud. EXIF GPS via piexif with sub-mm rationals, XMP packet inserted as an APP1 segment, parser for both.
+- Seed: a 12-shot RTK flight (8 nadir, 4 oblique) rendered by a background job. The stored pose is what ingest reads back from the JPEG, never the hidden truth.
+- Viewer: frustums, thumbnails, "photos that see the picked point" with a marker at the exact pixel, photo view with opacity slider. TS camera model (`geo/camera.ts`) mirrors the Python one and is unit-tested with the same conventions.
+- `core/splat.py`: point cloud → 3DGS PLY (isotropic Gaussians sized by 4th-neighbour distance, SH-DC colour, logit opacity, log scale, unit quaternion), written relative to the viewer's RTC origin. Rendered with Spark in the same scene.
+
+### What verification caught
+1. **Gimbal singularity:** OrbitControls with a Z-up camera can't represent a nadir view, and its `update()` would overwrite any pose. Photo mode sets the camera quaternion directly from the rotation rows and suspends the controls; exit restores them.
+
+### Results
+| Check | Result |
+|---|---|
+| Camera position after EXIF + geoid round trip | ≤ 1 mm (test) |
+| Control-point reprojection, true vs decoded pose | ≤ 0.5 px (test) |
+| Photo overlay vs 3D projection, all 12 photos, 8 control-point sightings (browser) | worst **0.25 px** on screen |
+| 12-photo flight rendered at startup | ~6 s |
+| 3DGS layer, 400 k Gaussians | loaded and rendered in 2.0 s |

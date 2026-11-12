@@ -132,3 +132,15 @@ table.kv td:last-child { text-align: right; }
 select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; width: 100%; }
 button.icon { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; }
 button.icon:hover { color: var(--danger); }
+
+/* photos */
+.thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.thumb { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 2px; cursor: pointer; font: 10px var(--mono); color: var(--muted); }
+.thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; border-radius: 2px; }
+.thumb.sel { border-color: var(--accent-2); color: var(--accent-2); }
+.photo-overlay { position: absolute; inset: 0; pointer-events: none; }
+.photo-frame { position: absolute; top: 0; height: 100%; left: 50%; transform: translateX(-50%); }
+.photo-frame img { width: 100%; height: 100%; display: block; }
+.photo-marker { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid #ffd166; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
+.photo-bar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 10px; background: rgba(11,15,20,0.85); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; pointer-events: auto; color: #d8e1ea; }
+.photo-bar input[type="range"] { flex: 1; max-width: 200px; accent-color: var(--accent-2); }

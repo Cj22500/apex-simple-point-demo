@@ -190,8 +190,13 @@ def seed_demo(app_state, density: float = 100.0) -> dict:
                "outsider": outsider.id, "other_project": other_proj.id}
 
     truth = site.site_truth()
+    scan_a = None
     for epoch, label in (("A", "Epoch A: 2026-10-01 TLS scan"), ("B", "Epoch B: 2026-11-01 TLS scan")):
         scan = site.generate_site(epoch, density=density)
+        scan_a = scan_a or scan
         ingest_pointset(app_state, ids["tenant"], ids["project"], label, scan.points, "synthetic", epoch=epoch,
                         meta={"synthetic": True, "truth": truth, "density": density})
+    from app.api.photo_routes import seed_photos
+
+    app_state.jobs.submit(ids["tenant"], "photos", lambda progress: seed_photos(app_state, ids["tenant"], ids["project"], scan_a))
     return {"seeded": True, **ids}
