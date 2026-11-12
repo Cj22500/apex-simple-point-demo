@@ -72,3 +72,34 @@ Specs (`measurement`, `crs-geoid`, `earthwork-volume`, `asbuilt`, `sima-dxf`), r
 
 ### Review (checklist)
 Axis order tested explicitly (`test_axis_order_is_x_north_y_east`); heights named h/N/H; no absolute float32; edge cases (zero-length, vertical, degenerate Umeyama input) covered.
+
+---
+
+## Phase 2: synthetic site, formats, octree, database (2026-11-12)
+
+### Spec → acceptance criteria
+- The synthetic site's own truth must be verified (a wrong "ground truth" would make every later test meaningless): closed-form volumes vs numerical integration ≤ 0.01 m³; ramp grade exactly 5 %; surface continuous; noise σ and outlier fraction as specified.
+- Octree: every point exactly once; decoded coordinates ≤ 0.05 mm; inner nodes hold one point per grid cell.
+- I/O: LAS, LAZ, E57, PLY, PTS, XYZ round-trips ≤ 0.1 mm at Tokyo-scale coordinates.
+- Tenancy: other tenants get 404 (not 403) on every resource; viewers cannot write.
+
+### Design decision during implementation
+- **Pit walls changed from vertical to 1:0.5 slopes (法面).** A vertical-walled pit can't be represented by a 2.5D TIN or DEM, so the "600 m³" box would never be measurable exactly. The 1:0.5 pit is a realistic excavation, gives a flat area (平場) and slopes (法面) for the as-built check, and has an exact prismoidal volume: **474 m³**. A known over-dig defect (−0.20 m Gaussian, 0.804 m³) is added to the floor so the as-built demo has something to find.
+
+### What verification caught
+1. **E57 silently lost 1.95 mm (library default).** `pye57.write_scan_raw` stores cartesian values as float32. At plane coordinates (~39 km) that rounds to ~2 mm. The round-trip test failed at 1.95 mm. Fixed by writing coordinates relative to a float64 origin carried in the E57 scan pose (translation), the same origin + offset strategy as the octree. Now ≤ 0.1 mm. *This is the kind of bug that ships unnoticed without numeric tests: the file opens fine in every viewer.*
+2. **Over-tight claim (agent):** defect leakage at the floor edge was asserted < 0.01 mm; measured 0.014 mm. It is irrelevant to the volume truth (the defect is added everywhere), so the bound was relaxed to 0.1 mm with the measured value noted.
+3. **Tooling:** Alembic's CLI wrapper fails in Git Bash, and Git Bash temp paths aren't valid for Windows Python. Used `python -m alembic` and `cygpath -m`.
+
+### Results
+| Check | Result |
+|---|---|
+| Pit prismoidal volume vs numeric integration | < 0.01 m³ |
+| Stockpile frustum volume vs numeric integration | < 0.01 m³ |
+| Octree, 3.0 M points | 267 nodes, 3.9 s; decoded error ≤ 0.05 mm |
+| 6 formats round trip | all ≤ 0.1 mm (after the E57 fix) |
+| Cross-tenant probes | 5/5 endpoints → 404 |
+| Alembic upgrade = models, downgrade clean | pass |
+
+### Review (checklist)
+Upload names never used as paths (temp file + id). Node names validated by regex (`r[0-7]*`), dataset ids by `[A-Za-z0-9_-]`. Other tenants' resources return 404, so their existence isn't revealed. Tiles are immutable and cacheable.
