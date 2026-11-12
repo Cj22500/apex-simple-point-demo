@@ -33,6 +33,7 @@ class OctreeConfig:
     max_leaf: int = 20_000
     max_depth: int = 12
     seed: int = 1
+    shuffle: bool = True  # False = deterministic (first point per cell in input order); used for TS parity tests
 
 
 def node_name(level: int, q: np.ndarray) -> str:
@@ -98,8 +99,7 @@ def build_octree(ps: PointSet, out_dir: Path, cfg: OctreeConfig = OctreeConfig()
     size = size * (1 + 1e-9) + 1e-6  # strictly contain the max point
     rel = (ps.xyz - lo) / size  # in [0, 1)
 
-    rng = np.random.default_rng(cfg.seed)
-    remaining = rng.permutation(n_total)
+    remaining = np.random.default_rng(cfg.seed).permutation(n_total) if cfg.shuffle else np.arange(n_total)
     nodes: list[dict] = []
 
     for level in range(cfg.max_depth + 1):

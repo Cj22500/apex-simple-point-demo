@@ -5,6 +5,7 @@ import { formatArea, formatDelta, formatGradeDegrees, formatGradePercent, format
 import { measure, polygonArea, polylineLength, toJgd } from "../geo/measure";
 import { useStore, type MeasurementItem, type Tool } from "../store";
 import { getEngine } from "./engineRef";
+import { OfflinePanel } from "./OfflinePanel";
 import { measurementLabel } from "./Viewer";
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
@@ -109,6 +110,7 @@ export function LayerPanel() {
         ))}
         <UploadButton />
       </section>
+      <OfflinePanel />
       <section>
         <h3>Color</h3>
         <div className="seg">
