@@ -15,6 +15,12 @@ def _integrate(fn, rect, step=0.01):
     return total
 
 
+def test_site_truth_matches_decimal_golden(golden_volumes):
+    """Site formulas (float) agree with the 50-digit decimal golden values."""
+    assert abs(site.ANALYTIC["pit_volume_design_m3"] - golden_volumes["pit_prismoid"]["volume"]) < 1e-9
+    assert abs(site.ANALYTIC["stockpile_volume_epochA_m3"] - golden_volumes["stockpile_frustum"]["volume"]) < 1e-9
+
+
 def test_pit_prismoidal_volume_matches_numeric_integration(metric):
     num = _integrate(site.pit_depth, site.PIT_TOP)
     err = abs(num - site.ANALYTIC["pit_volume_design_m3"])

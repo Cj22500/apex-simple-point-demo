@@ -134,7 +134,11 @@ def main() -> None:
     R, r, h = D(8), D(2), D(4)
     volumes = {
         "description": "Analytic earthwork volumes used as ground truth (m^3).",
-        "pit_box": {"length": 20.0, "width": 10.0, "depth": 3.0, "volume": 600.0},
+        "pit_prismoid": {
+            "comment": "top 20 x 10 m, depth 3 m, 1:0.5 walls -> bottom 17 x 7 m; prismoidal formula h/6 (A1 + 4 Am + A2)",
+            "top": [20.0, 10.0], "bottom": [17.0, 7.0], "depth": 3.0,
+            "volume": float(D(3) / 6 * (D(200) + 4 * D("18.5") * D("8.5") + D(119))),
+        },
         "stockpile_frustum": {"R": 8.0, "r": 2.0, "h": 4.0, "volume": float(PI * h / 3 * (R * R + R * r + r * r))},
         "square_pyramid": {"base": 10.0, "height": 6.0, "volume": float(D(10) * D(10) * D(6) / 3)},
         "half_cut_pyramid_ref_3m": {

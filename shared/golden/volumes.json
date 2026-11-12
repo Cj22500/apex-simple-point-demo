@@ -1,10 +1,17 @@
 {
   "description": "Analytic earthwork volumes used as ground truth (m^3).",
-  "pit_box": {
-    "length": 20.0,
-    "width": 10.0,
+  "pit_prismoid": {
+    "comment": "top 20 x 10 m, depth 3 m, 1:0.5 walls -> bottom 17 x 7 m; prismoidal formula h/6 (A1 + 4 Am + A2)",
+    "top": [
+      20.0,
+      10.0
+    ],
+    "bottom": [
+      17.0,
+      7.0
+    ],
     "depth": 3.0,
-    "volume": 600.0
+    "volume": 474.0
   },
   "stockpile_frustum": {
     "R": 8.0,

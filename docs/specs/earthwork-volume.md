@@ -6,7 +6,7 @@
 Compute cut and fill volumes (m³) of a point cloud surface relative to a horizontal reference plane, inside a plan polygon. Used for stockpile inventory and excavation progress (出来高).
 
 ## Methods
-- **grid:** DEM with cell size `c` (cell mean of ground points; gaps filled by linear interpolation; cells clipped to the polygon by cell center). `cut = Σ max(z − ref, 0)·c²`, `fill = Σ max(ref − z, 0)·c²`.
+- **grid:** DEM with cell size `c` (cell median of ground points by default, mean optional; gaps filled by linear interpolation; cells clipped to the polygon by cell center). `cut = Σ max(z − ref, 0)·c²`, `fill = Σ max(ref − z, 0)·c²`.
 - **tin:** Delaunay TIN of the points inside the polygon; exact prism volume per triangle above/below `ref`. Triangles crossing `ref` are split analytically at the intersection line. Exact for piecewise-planar surfaces.
 
 Terminology: *cut* = material above the reference plane (to remove), *fill* = space below the plane (to fill). Net = cut − fill.
