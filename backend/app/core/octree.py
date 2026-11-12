@@ -168,6 +168,7 @@ def build_octree(ps: PointSet, out_dir: Path, cfg: OctreeConfig = OctreeConfig()
         },
         "stats": {
             "z_min": float(lo[2]), "z_max": float(hi[2]),
+            "z_p01": float(np.percentile(ps.xyz[:, 2], 1)), "z_p99": float(np.percentile(ps.xyz[:, 2], 99)),
             "intensity_p02": float(np.percentile(ps.intensity, 2)) if ps.intensity is not None else 0.0,
             "intensity_p98": float(np.percentile(ps.intensity, 98)) if ps.intensity is not None else 65535.0,
             **{f"{e}_absmax": float(np.nanmax(np.abs(ps.extra[e]))) for e in extras},

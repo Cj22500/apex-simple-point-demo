@@ -103,3 +103,34 @@ Axis order tested explicitly (`test_axis_order_is_x_north_y_east`); heights name
 
 ### Review (checklist)
 Upload names never used as paths (temp file + id). Node names validated by regex (`r[0-7]*`), dataset ids by `[A-Za-z0-9_-]`. Other tenants' resources return 404, so their existence isn't revealed. Tiles are immutable and cacheable.
+
+---
+
+## Phases 3–4: viewer engine, LOD, picking, measurement UX (2026-11-12)
+
+### Spec → acceptance criteria
+- LOD: never exceed the point budget; connected subtree (parents before children); frustum culling; refine near the camera first.
+- Python-encoded octree node decodes in TypeScript to the same float64 coordinates (≤ 0.05 mm).
+- Picking returns the **exact stored point** (float64 from node centre + float32 offset), never a depth-buffer estimate.
+- End-to-end: measuring the 5 % ramp through the real UI gives ≈ 5 % within the 3 mm scan noise.
+
+### Implementation
+- `engine/lod.ts`: pure, testable priority-queue selection (screen-space radius); `PointCloudLayer.ts`: streaming, per-node materials sharing uniforms, LRU eviction; `PointCloudEngine.ts`: RTC rendering (Z-up, x = E, y = N, z = H), GPU ID picking (node slot << 20 | `gl_VertexID` in RGBA8), Eye-Dome Lighting pass, adaptive point size.
+- Colour modes in one shader: RGB, elevation (Turbo), intensity (p2–p98 + gamma), classification, ΔZ (diverging).
+- UI: Distance / Point / Polyline / Area tools; panel shows 3D and horizontal distance, ΔX (north), ΔY (east), ΔH, grade % and angle to 0.1 mm; lat/lon, ellipsoidal h and geoid N via the CRS API; "server cross-check" compares browser and Python results; measurements save to the project (DB).
+
+### What verification caught
+1. **Shaders didn't compile (agent):** in three.js r187, GLSL3 `ShaderMaterial` no longer aliases `gl_FragColor`. The HUD showed 0.9 M points "visible" while the screen was black. The console said "no valid shader program"; the program info log pinpointed it. Fixed with explicit `out vec4`. *Lesson: a HUD counter is not proof of rendering; pixel coverage was measured with `readPixels`.*
+2. **LOD looked blobby / under-used the budget:** refinement stopped at 0.92 M of 2 M points (threshold too high), and coarse parent points were drawn at their own large spacing. Fixed with Potree-style sizing by the deepest visible descendant and a lower threshold → 2.00 M points, 159 nodes.
+3. **Picking appeared 3–4 m off in the automated UI test.** Investigation showed the pick was right, but the test's `project()` used the container size while the canvas hadn't been resized (the ResizeObserver doesn't fire while the page is hidden). Fixed: `project()` uses the canvas size, and the frame loop re-checks the size. After the fix, direct picks land within 1 px.
+4. **Test harness lesson:** the browser pane was hidden, so `requestAnimationFrame` was suspended. The engine was stepped manually from JS (`__spl.engine.loop()`), and real `PointerEvent`s were dispatched so the actual UI code path was exercised.
+
+### Results
+| Check | Result |
+|---|---|
+| LOD unit tests (budget, subtree, culling, near-first) | 7/7 |
+| TS decode of Python node (257 pts, ±100 m offsets) | ≤ 0.05 mm |
+| UI Distance on the ramp, local x 130 → 160 | 30.0324 m, **5.010 %** (truth 5 %, noise 3 mm × √2 over 30 m ≈ ±0.014 %) |
+| Picked H vs analytic ramp surface | −1.7 mm, −2.1 mm (σ = 3 mm noise) |
+
+Not yet verified: real-time FPS on a visible GPU window (the pane was hidden during automated checks; FPS figures shown came from manual stepping).
