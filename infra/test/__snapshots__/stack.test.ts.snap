@@ -1,0 +1,3132 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`template snapshot 1`] = `
+{
+  "Outputs": {
+    "ApiLoadBalancerDNSB0038DD0": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ApiLB8D4BD609",
+          "DNSName",
+        ],
+      },
+    },
+    "ApiServiceURL135D4FCA": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "http://",
+            {
+              "Fn::GetAtt": [
+                "ApiLB8D4BD609",
+                "DNSName",
+              ],
+            },
+          ],
+        ],
+      },
+    },
+    "EcrRepo": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            {
+              "Fn::Select": [
+                4,
+                {
+                  "Fn::Split": [
+                    ":",
+                    {
+                      "Fn::GetAtt": [
+                        "BackendRepo7FFBAD06",
+                        "Arn",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            ".dkr.ecr.",
+            {
+              "Fn::Select": [
+                3,
+                {
+                  "Fn::Split": [
+                    ":",
+                    {
+                      "Fn::GetAtt": [
+                        "BackendRepo7FFBAD06",
+                        "Arn",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            ".",
+            {
+              "Ref": "AWS::URLSuffix",
+            },
+            "/",
+            {
+              "Ref": "BackendRepo7FFBAD06",
+            },
+          ],
+        ],
+      },
+    },
+    "RawBucket": {
+      "Value": {
+        "Ref": "RawUploadsA47B37A6",
+      },
+    },
+    "Url": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Fn::GetAtt": [
+                "Cdn9963B1AD",
+                "DomainName",
+              ],
+            },
+          ],
+        ],
+      },
+    },
+    "WorkerSQSQueue1B59E312": {
+      "Value": {
+        "Fn::GetAtt": [
+          "IngestQueue2280FF4E",
+          "QueueName",
+        ],
+      },
+    },
+    "WorkerSQSQueueArn20630BCA": {
+      "Value": {
+        "Fn::GetAtt": [
+          "IngestQueue2280FF4E",
+          "Arn",
+        ],
+      },
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "ApiLB8D4BD609": {
+      "DependsOn": [
+        "VpcpublicSubnet1DefaultRouteB88F9E93",
+        "VpcpublicSubnet1RouteTableAssociation4E83B6E4",
+        "VpcpublicSubnet2DefaultRoute732F0BEB",
+        "VpcpublicSubnet2RouteTableAssociationCCE257FF",
+      ],
+      "Properties": {
+        "LoadBalancerAttributes": [
+          {
+            "Key": "deletion_protection.enabled",
+            "Value": "false",
+          },
+        ],
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Fn::GetAtt": [
+              "ApiLBSecurityGroup70AC4E5C",
+              "GroupId",
+            ],
+          },
+        ],
+        "Subnets": [
+          {
+            "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+          },
+          {
+            "Ref": "VpcpublicSubnet2SubnetE34B022A",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "Type": "application",
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+    },
+    "ApiLBPublicListener5142AAA5": {
+      "Properties": {
+        "DefaultActions": [
+          {
+            "TargetGroupArn": {
+              "Ref": "ApiLBPublicListenerECSGroup45FF926A",
+            },
+            "Type": "forward",
+          },
+        ],
+        "LoadBalancerArn": {
+          "Ref": "ApiLB8D4BD609",
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+    },
+    "ApiLBPublicListenerECSGroup45FF926A": {
+      "Properties": {
+        "HealthCheckPath": "/api/health",
+        "Port": 80,
+        "Protocol": "HTTP",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "TargetGroupAttributes": [
+          {
+            "Key": "stickiness.enabled",
+            "Value": "false",
+          },
+        ],
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+    },
+    "ApiLBSecurityGroup70AC4E5C": {
+      "Properties": {
+        "GroupDescription": "Automatically created Security Group for ELB TestApiLB22C1508D",
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow from anyone on port 80",
+            "FromPort": 80,
+            "IpProtocol": "tcp",
+            "ToPort": 80,
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "ApiLBSecurityGrouptoTestApiServiceSecurityGroupB1BB427B8000092991CC": {
+      "Properties": {
+        "Description": "Load balancer to target",
+        "DestinationSecurityGroupId": {
+          "Fn::GetAtt": [
+            "ApiServiceSecurityGroupB2E30D06",
+            "GroupId",
+          ],
+        },
+        "FromPort": 8000,
+        "GroupId": {
+          "Fn::GetAtt": [
+            "ApiLBSecurityGroup70AC4E5C",
+            "GroupId",
+          ],
+        },
+        "IpProtocol": "tcp",
+        "ToPort": 8000,
+      },
+      "Type": "AWS::EC2::SecurityGroupEgress",
+    },
+    "ApiServiceD5B4A50A": {
+      "DependsOn": [
+        "ApiLBPublicListenerECSGroup45FF926A",
+        "ApiLBPublicListener5142AAA5",
+        "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF",
+        "ApiTaskDefTaskRole69DE15BC",
+      ],
+      "Properties": {
+        "Cluster": {
+          "Ref": "ClusterEB0386A7",
+        },
+        "DeploymentConfiguration": {
+          "Alarms": {
+            "AlarmNames": [],
+            "Enable": false,
+            "Rollback": false,
+          },
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true,
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100,
+        },
+        "DeploymentController": {
+          "Type": "ECS",
+        },
+        "DesiredCount": 1,
+        "EnableECSManagedTags": false,
+        "HealthCheckGracePeriodSeconds": 60,
+        "LaunchType": "FARGATE",
+        "LoadBalancers": [
+          {
+            "ContainerName": "web",
+            "ContainerPort": 8000,
+            "TargetGroupArn": {
+              "Ref": "ApiLBPublicListenerECSGroup45FF926A",
+            },
+          },
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "SecurityGroups": [
+              {
+                "Fn::GetAtt": [
+                  "ApiServiceSecurityGroupB2E30D06",
+                  "GroupId",
+                ],
+              },
+            ],
+            "Subnets": [
+              {
+                "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+              },
+              {
+                "Ref": "VpcpublicSubnet2SubnetE34B022A",
+              },
+            ],
+          },
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "TaskDefinition": {
+          "Ref": "ApiTaskDefCB0575BA",
+        },
+      },
+      "Type": "AWS::ECS::Service",
+    },
+    "ApiServiceSecurityGroupB2E30D06": {
+      "DependsOn": [
+        "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF",
+        "ApiTaskDefTaskRole69DE15BC",
+      ],
+      "Properties": {
+        "GroupDescription": "Test/Api/Service/SecurityGroup",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "ApiServiceSecurityGroupfromTestApiLBSecurityGroup3F7C17B1800010A65566": {
+      "DependsOn": [
+        "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF",
+        "ApiTaskDefTaskRole69DE15BC",
+      ],
+      "Properties": {
+        "Description": "Load balancer to target",
+        "FromPort": 8000,
+        "GroupId": {
+          "Fn::GetAtt": [
+            "ApiServiceSecurityGroupB2E30D06",
+            "GroupId",
+          ],
+        },
+        "IpProtocol": "tcp",
+        "SourceSecurityGroupId": {
+          "Fn::GetAtt": [
+            "ApiLBSecurityGroup70AC4E5C",
+            "GroupId",
+          ],
+        },
+        "ToPort": 8000,
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress",
+    },
+    "ApiServiceTaskCountTarget7F73DCFB": {
+      "DependsOn": [
+        "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF",
+        "ApiTaskDefTaskRole69DE15BC",
+      ],
+      "Properties": {
+        "MaxCapacity": 4,
+        "MinCapacity": 1,
+        "ResourceId": {
+          "Fn::Join": [
+            "",
+            [
+              "service/",
+              {
+                "Ref": "ClusterEB0386A7",
+              },
+              "/",
+              {
+                "Fn::GetAtt": [
+                  "ApiServiceD5B4A50A",
+                  "Name",
+                ],
+              },
+            ],
+          ],
+        },
+        "RoleARN": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":iam::123456789012:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService",
+            ],
+          ],
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+    },
+    "ApiServiceTaskCountTargetCpuD7E28A82": {
+      "DependsOn": [
+        "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF",
+        "ApiTaskDefTaskRole69DE15BC",
+      ],
+      "Properties": {
+        "PolicyName": "TestApiServiceTaskCountTargetCpu0B7DE189",
+        "PolicyType": "TargetTrackingScaling",
+        "ScalingTargetId": {
+          "Ref": "ApiServiceTaskCountTarget7F73DCFB",
+        },
+        "TargetTrackingScalingPolicyConfiguration": {
+          "PredefinedMetricSpecification": {
+            "PredefinedMetricType": "ECSServiceAverageCPUUtilization",
+          },
+          "TargetValue": 70,
+        },
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+    },
+    "ApiTaskDefCB0575BA": {
+      "Properties": {
+        "ContainerDefinitions": [
+          {
+            "Environment": [
+              {
+                "Name": "SPL_STORAGE",
+                "Value": "s3",
+              },
+              {
+                "Name": "SPL_RAW_BUCKET",
+                "Value": {
+                  "Ref": "RawUploadsA47B37A6",
+                },
+              },
+              {
+                "Name": "SPL_TILES_BUCKET",
+                "Value": {
+                  "Ref": "Tiles6A3958EB",
+                },
+              },
+              {
+                "Name": "SPL_QUEUE_URL",
+                "Value": {
+                  "Ref": "IngestQueue2280FF4E",
+                },
+              },
+              {
+                "Name": "SPL_DEV_AUTH",
+                "Value": "0",
+              },
+              {
+                "Name": "SPL_SEED",
+                "Value": "0",
+              },
+            ],
+            "Essential": true,
+            "Image": {
+              "Fn::Join": [
+                "",
+                [
+                  {
+                    "Fn::Select": [
+                      4,
+                      {
+                        "Fn::Split": [
+                          ":",
+                          {
+                            "Fn::GetAtt": [
+                              "BackendRepo7FFBAD06",
+                              "Arn",
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  ".dkr.ecr.",
+                  {
+                    "Fn::Select": [
+                      3,
+                      {
+                        "Fn::Split": [
+                          ":",
+                          {
+                            "Fn::GetAtt": [
+                              "BackendRepo7FFBAD06",
+                              "Arn",
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  ".",
+                  {
+                    "Ref": "AWS::URLSuffix",
+                  },
+                  "/",
+                  {
+                    "Ref": "BackendRepo7FFBAD06",
+                  },
+                  ":latest",
+                ],
+              ],
+            },
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "ApiTaskDefwebLogGroupDF6AD406",
+                },
+                "awslogs-region": "ap-northeast-1",
+                "awslogs-stream-prefix": "api",
+              },
+            },
+            "Name": "web",
+            "PortMappings": [
+              {
+                "ContainerPort": 8000,
+                "Protocol": "tcp",
+              },
+            ],
+            "Secrets": [
+              {
+                "Name": "SPL_DB_HOST",
+                "ValueFrom": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "DbSecretAttachment7AED447C",
+                      },
+                      ":host::",
+                    ],
+                  ],
+                },
+              },
+              {
+                "Name": "SPL_DB_PASSWORD",
+                "ValueFrom": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "DbSecretAttachment7AED447C",
+                      },
+                      ":password::",
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+        "Cpu": "512",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "ApiTaskDefExecutionRole5CBCA7DA",
+            "Arn",
+          ],
+        },
+        "Family": "TestApiTaskDefA04D2C76",
+        "Memory": "1024",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE",
+        ],
+        "RuntimePlatform": {
+          "CpuArchitecture": "ARM64",
+          "OperatingSystemFamily": "LINUX",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "ApiTaskDefTaskRole69DE15BC",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::ECS::TaskDefinition",
+    },
+    "ApiTaskDefExecutionRole5CBCA7DA": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "ApiTaskDefExecutionRoleDefaultPolicyE5F94BFA": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BackendRepo7FFBAD06",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "ecr:GetAuthorizationToken",
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ApiTaskDefwebLogGroupDF6AD406",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "DbSecretAttachment7AED447C",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "ApiTaskDefExecutionRoleDefaultPolicyE5F94BFA",
+        "Roles": [
+          {
+            "Ref": "ApiTaskDefExecutionRole5CBCA7DA",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "ApiTaskDefTaskRole69DE15BC": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "RawUploadsA47B37A6",
+                        "Arn",
+                      ],
+                    },
+                    "/uploads/*",
+                  ],
+                ],
+              },
+            },
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Tiles6A3958EB",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "Tiles6A3958EB",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "sqs:SendMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestQueue2280FF4E",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "ApiTaskDefTaskRoleDefaultPolicyE6FD21EF",
+        "Roles": [
+          {
+            "Ref": "ApiTaskDefTaskRole69DE15BC",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "ApiTaskDefwebLogGroupDF6AD406": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "RetentionInDays": 14,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "BackendRepo7FFBAD06": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "ImageScanningConfiguration": {
+          "ScanOnPush": true,
+        },
+        "LifecyclePolicy": {
+          "LifecyclePolicyText": "{"rules":[{"rulePriority":1,"selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::ECR::Repository",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691": {
+      "DependsOn": [
+        "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC",
+      ],
+      "Properties": {
+        "Code": {
+          "ZipFile": "import boto3  # type: ignore
+import json
+import logging
+import urllib.request
+
+s3 = boto3.client("s3")
+
+EVENTBRIDGE_CONFIGURATION = 'EventBridgeConfiguration'
+CONFIGURATION_TYPES = ["TopicConfigurations", "QueueConfigurations", "LambdaFunctionConfigurations"]
+
+def handler(event: dict, context):
+  response_status = "SUCCESS"
+  error_message = ""
+  try:
+    props = event["ResourceProperties"]
+    notification_configuration = props["NotificationConfiguration"]
+    managed = props.get('Managed', 'true').lower() == 'true'
+    skipDestinationValidation = props.get('SkipDestinationValidation', 'false').lower() == 'true'
+    stack_id = event['StackId']
+    old = event.get("OldResourceProperties", {}).get("NotificationConfiguration", {})
+    if managed:
+      config = handle_managed(event["RequestType"], notification_configuration)
+    else:
+      config = handle_unmanaged(props["BucketName"], stack_id, event["RequestType"], notification_configuration, old)
+    s3.put_bucket_notification_configuration(Bucket=props["BucketName"], NotificationConfiguration=config, SkipDestinationValidation=skipDestinationValidation)
+  except Exception as e:
+    logging.exception("Failed to put bucket notification configuration")
+    response_status = "FAILED"
+    error_message = f"Error: {str(e)}. "
+  finally:
+    submit_response(event, context, response_status, error_message)
+
+def handle_managed(request_type, notification_configuration):
+  if request_type == 'Delete':
+    return {}
+  return notification_configuration
+
+def handle_unmanaged(bucket, stack_id, request_type, notification_configuration, old):
+  def get_id(n):
+    n['Id'] = ''
+    sorted_notifications = sort_filter_rules(n)
+    strToHash=json.dumps(sorted_notifications, sort_keys=True).replace('"Name": "prefix"', '"Name": "Prefix"').replace('"Name": "suffix"', '"Name": "Suffix"')
+    return f"{stack_id}-{hash(strToHash)}"
+  def with_id(n):
+    n['Id'] = get_id(n)
+    return n
+
+  external_notifications = {}
+  existing_notifications = s3.get_bucket_notification_configuration(Bucket=bucket)
+  for t in CONFIGURATION_TYPES:
+    if request_type == 'Update':
+        old_incoming_ids = [get_id(n) for n in old.get(t, [])]
+        external_notifications[t] = [n for n in existing_notifications.get(t, []) if not get_id(n) in old_incoming_ids]      
+    elif request_type == 'Delete':
+        external_notifications[t] = [n for n in existing_notifications.get(t, []) if not n['Id'].startswith(f"{stack_id}-")]
+    elif request_type == 'Create':
+        external_notifications[t] = [n for n in existing_notifications.get(t, [])]
+  if EVENTBRIDGE_CONFIGURATION in existing_notifications:
+    external_notifications[EVENTBRIDGE_CONFIGURATION] = existing_notifications[EVENTBRIDGE_CONFIGURATION]
+
+  if request_type == 'Delete':
+    return external_notifications
+
+  notifications = {}
+  for t in CONFIGURATION_TYPES:
+    external = external_notifications.get(t, [])
+    incoming = [with_id(n) for n in notification_configuration.get(t, [])]
+    notifications[t] = external + incoming
+
+  if EVENTBRIDGE_CONFIGURATION in notification_configuration:
+    notifications[EVENTBRIDGE_CONFIGURATION] = notification_configuration[EVENTBRIDGE_CONFIGURATION]
+  elif EVENTBRIDGE_CONFIGURATION in external_notifications:
+    notifications[EVENTBRIDGE_CONFIGURATION] = external_notifications[EVENTBRIDGE_CONFIGURATION]
+
+  return notifications
+
+def submit_response(event: dict, context, response_status: str, error_message: str):
+  response_body = json.dumps(
+    {
+      "Status": response_status,
+      "Reason": f"{error_message}See the details in CloudWatch Log Stream: {context.log_stream_name}",
+      "PhysicalResourceId": event.get("PhysicalResourceId") or event["LogicalResourceId"],
+      "StackId": event["StackId"],
+      "RequestId": event["RequestId"],
+      "LogicalResourceId": event["LogicalResourceId"],
+      "NoEcho": False,
+    }
+  ).encode("utf-8")
+  headers = {"content-type": "", "content-length": str(len(response_body))}
+  try:
+    req = urllib.request.Request(url=event["ResponseURL"], headers=headers, data=response_body, method="PUT")
+    with urllib.request.urlopen(req) as response:
+      print(response.read().decode("utf-8"))
+    print("Status code: " + response.reason)
+  except Exception as e:
+      print("send(..) failed executing request.urlopen(..): " + str(e))
+
+def sort_filter_rules(json_obj):
+  if not isinstance(json_obj, dict):
+      return json_obj
+  for key, value in json_obj.items():
+      if isinstance(value, dict):
+          json_obj[key] = sort_filter_rules(value)
+      elif isinstance(value, list):
+          json_obj[key] = [sort_filter_rules(item) for item in value]
+  if "Filter" in json_obj and "Key" in json_obj["Filter"] and "FilterRules" in json_obj["Filter"]["Key"]:
+      filter_rules = json_obj["Filter"]["Key"]["FilterRules"]
+      sorted_filter_rules = sorted(filter_rules, key=lambda x: x["Name"])
+      json_obj["Filter"]["Key"]["FilterRules"] = sorted_filter_rules
+  return json_obj",
+        },
+        "Description": "AWS CloudFormation handler for "Custom::S3BucketNotifications" resources (@aws-cdk/aws-s3)",
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC",
+            "Arn",
+          ],
+        },
+        "Runtime": "python3.13",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "Timeout": 300,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "Cdn9963B1AD": {
+      "Properties": {
+        "DistributionConfig": {
+          "CacheBehaviors": [
+            {
+              "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+              "Compress": true,
+              "PathPattern": "/tiles/*",
+              "TargetOriginId": "TestCdnOrigin296C4935B",
+              "ViewerProtocolPolicy": "redirect-to-https",
+            },
+          ],
+          "DefaultCacheBehavior": {
+            "AllowedMethods": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "PUT",
+              "PATCH",
+              "POST",
+              "DELETE",
+            ],
+            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+            "Compress": true,
+            "OriginRequestPolicyId": "216adef6-5c7f-47e4-b989-5492eafa07d3",
+            "TargetOriginId": "TestCdnOrigin186F1F774",
+            "ViewerProtocolPolicy": "redirect-to-https",
+          },
+          "Enabled": true,
+          "HttpVersion": "http2",
+          "IPV6Enabled": true,
+          "Origins": [
+            {
+              "CustomOriginConfig": {
+                "OriginProtocolPolicy": "http-only",
+                "OriginSSLProtocols": [
+                  "TLSv1.2",
+                ],
+              },
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "ApiLB8D4BD609",
+                  "DNSName",
+                ],
+              },
+              "Id": "TestCdnOrigin186F1F774",
+            },
+            {
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "Tiles6A3958EB",
+                  "RegionalDomainName",
+                ],
+              },
+              "Id": "TestCdnOrigin296C4935B",
+              "OriginAccessControlId": {
+                "Fn::GetAtt": [
+                  "CdnOrigin2S3OriginAccessControl7449658C",
+                  "Id",
+                ],
+              },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": "",
+              },
+            },
+          ],
+          "PriceClass": "PriceClass_200",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::CloudFront::Distribution",
+    },
+    "CdnOrigin2S3OriginAccessControl7449658C": {
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": "TestCdnOrigin2S3OriginAccessControl811A6757",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4",
+        },
+      },
+      "Type": "AWS::CloudFront::OriginAccessControl",
+    },
+    "Cluster3DA9CCBA": {
+      "Properties": {
+        "CapacityProviders": [
+          "FARGATE",
+          "FARGATE_SPOT",
+        ],
+        "Cluster": {
+          "Ref": "ClusterEB0386A7",
+        },
+        "DefaultCapacityProviderStrategy": [],
+      },
+      "Type": "AWS::ECS::ClusterCapacityProviderAssociations",
+    },
+    "ClusterEB0386A7": {
+      "Properties": {
+        "ClusterSettings": [
+          {
+            "Name": "containerInsights",
+            "Value": "disabled",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::ECS::Cluster",
+    },
+    "Db5D02A0A9": {
+      "DeletionPolicy": "Snapshot",
+      "Properties": {
+        "AllocatedStorage": "20",
+        "BackupRetentionPeriod": 7,
+        "CopyTagsToSnapshot": true,
+        "DBInstanceClass": "db.t4g.micro",
+        "DBName": "spl",
+        "DBSubnetGroupName": {
+          "Ref": "DbSubnetGroup6F6C177A",
+        },
+        "Engine": "postgres",
+        "EngineVersion": "16",
+        "MasterUserPassword": {
+          "Fn::Join": [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              {
+                "Ref": "TestDbSecret5236E3503fdaad7efa858a3daf9490cf0a702aeb",
+              },
+              ":SecretString:password::}}",
+            ],
+          ],
+        },
+        "MasterUsername": "spl",
+        "MultiAZ": false,
+        "PubliclyAccessible": false,
+        "StorageEncrypted": true,
+        "StorageType": "gp2",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "VPCSecurityGroups": [
+          {
+            "Fn::GetAtt": [
+              "DbSecurityGroupC34ABFAB",
+              "GroupId",
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::RDS::DBInstance",
+      "UpdateReplacePolicy": "Snapshot",
+    },
+    "DbSecretAttachment7AED447C": {
+      "Properties": {
+        "SecretId": {
+          "Ref": "TestDbSecret5236E3503fdaad7efa858a3daf9490cf0a702aeb",
+        },
+        "TargetId": {
+          "Ref": "Db5D02A0A9",
+        },
+        "TargetType": "AWS::RDS::DBInstance",
+      },
+      "Type": "AWS::SecretsManager::SecretTargetAttachment",
+    },
+    "DbSecurityGroupC34ABFAB": {
+      "Properties": {
+        "GroupDescription": "Security group for Db database",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "DbSecurityGroupfromTestApiServiceSecurityGroupB1BB427BIndirectPort1E386B84": {
+      "Properties": {
+        "Description": "from TestApiServiceSecurityGroupB1BB427B:{IndirectPort}",
+        "FromPort": {
+          "Fn::GetAtt": [
+            "Db5D02A0A9",
+            "Endpoint.Port",
+          ],
+        },
+        "GroupId": {
+          "Fn::GetAtt": [
+            "DbSecurityGroupC34ABFAB",
+            "GroupId",
+          ],
+        },
+        "IpProtocol": "tcp",
+        "SourceSecurityGroupId": {
+          "Fn::GetAtt": [
+            "ApiServiceSecurityGroupB2E30D06",
+            "GroupId",
+          ],
+        },
+        "ToPort": {
+          "Fn::GetAtt": [
+            "Db5D02A0A9",
+            "Endpoint.Port",
+          ],
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress",
+    },
+    "DbSecurityGroupfromTestWorkerQueueProcessingFargateServiceSecurityGroupFDFA4CAAIndirectPortDBAD1B76": {
+      "Properties": {
+        "Description": "from TestWorkerQueueProcessingFargateServiceSecurityGroupFDFA4CAA:{IndirectPort}",
+        "FromPort": {
+          "Fn::GetAtt": [
+            "Db5D02A0A9",
+            "Endpoint.Port",
+          ],
+        },
+        "GroupId": {
+          "Fn::GetAtt": [
+            "DbSecurityGroupC34ABFAB",
+            "GroupId",
+          ],
+        },
+        "IpProtocol": "tcp",
+        "SourceSecurityGroupId": {
+          "Fn::GetAtt": [
+            "WorkerQueueProcessingFargateServiceSecurityGroupF7A39A5F",
+            "GroupId",
+          ],
+        },
+        "ToPort": {
+          "Fn::GetAtt": [
+            "Db5D02A0A9",
+            "Endpoint.Port",
+          ],
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress",
+    },
+    "DbSubnetGroup6F6C177A": {
+      "Properties": {
+        "DBSubnetGroupDescription": "Subnet group for Db database",
+        "SubnetIds": [
+          {
+            "Ref": "VpcdbSubnet1Subnet1B82B149",
+          },
+          {
+            "Ref": "VpcdbSubnet2Subnet01192A3B",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::RDS::DBSubnetGroup",
+    },
+    "IngestDLQA251CA18": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "MessageRetentionPeriod": 1209600,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "IngestDLQPolicyC311D092": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestDLQA251CA18",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "IngestDLQA251CA18",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "IngestQueue2280FF4E": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "IngestDLQA251CA18",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 3,
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "VisibilityTimeout": 1800,
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "IngestQueuePolicy853373B8": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestQueue2280FF4E",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "IngestQueue2280FF4E",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A": {
+      "DependsOn": [
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB",
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "2819175352ad1ce0dae768e83fc328fb70fb5f10b4a8ff0ccbcb791f02b0716d.zip",
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "Timeout": 900,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:PutRetentionPolicy",
+                "logs:DeleteRetentionPolicy",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB",
+        "Roles": [
+          {
+            "Ref": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "MonthlyBudget": {
+      "Properties": {
+        "Budget": {
+          "BudgetLimit": {
+            "Amount": 150,
+            "Unit": "USD",
+          },
+          "BudgetType": "COST",
+          "CostFilters": {
+            "TagKeyValue": [
+              "user:app$simple-point-lite",
+            ],
+          },
+          "TimeUnit": "MONTHLY",
+        },
+        "NotificationsWithSubscribers": [
+          {
+            "Notification": {
+              "ComparisonOperator": "GREATER_THAN",
+              "NotificationType": "FORECASTED",
+              "Threshold": 80,
+              "ThresholdType": "PERCENTAGE",
+            },
+            "Subscribers": [
+              {
+                "Address": "ops@example.com",
+                "SubscriptionType": "EMAIL",
+              },
+            ],
+          },
+        ],
+        "ResourceTags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::Budgets::Budget",
+    },
+    "RawUploadsA47B37A6": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256",
+              },
+            },
+          ],
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedHeaders": [
+                "*",
+              ],
+              "AllowedMethods": [
+                "PUT",
+                "POST",
+              ],
+              "AllowedOrigins": [
+                "*",
+              ],
+            },
+          ],
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 2,
+              },
+              "Status": "Enabled",
+            },
+            {
+              "Status": "Enabled",
+              "Transitions": [
+                {
+                  "StorageClass": "STANDARD_IA",
+                  "TransitionInDays": 30,
+                },
+                {
+                  "StorageClass": "GLACIER_IR",
+                  "TransitionInDays": 120,
+                },
+              ],
+            },
+          ],
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true,
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "RawUploadsAllowBucketNotificationsToTestUploadNotifier1746FB8B718A6197": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "UploadNotifier76DDA296",
+            "Arn",
+          ],
+        },
+        "Principal": "s3.amazonaws.com",
+        "SourceAccount": "123456789012",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "RawUploadsA47B37A6",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "RawUploadsNotifications66BD34B7": {
+      "DependsOn": [
+        "RawUploadsAllowBucketNotificationsToTestUploadNotifier1746FB8B718A6197",
+        "RawUploadsNotificationsHandlerPolicy6F0C1756",
+        "RawUploadsPolicyCF594858",
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "RawUploadsA47B37A6",
+        },
+        "Managed": true,
+        "NotificationConfiguration": {
+          "LambdaFunctionConfigurations": [
+            {
+              "Events": [
+                "s3:ObjectCreated:*",
+              ],
+              "Filter": {
+                "Key": {
+                  "FilterRules": [
+                    {
+                      "Name": "prefix",
+                      "Value": "uploads/",
+                    },
+                  ],
+                },
+              },
+              "LambdaFunctionArn": {
+                "Fn::GetAtt": [
+                  "UploadNotifier76DDA296",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691",
+            "Arn",
+          ],
+        },
+        "SkipDestinationValidation": false,
+      },
+      "Type": "Custom::S3BucketNotifications",
+    },
+    "RawUploadsNotificationsHandlerPolicy6F0C1756": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:PutBucketNotification",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "RawUploadsA47B37A6",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "RawUploadsNotificationsHandlerPolicy6F0C1756",
+        "Roles": [
+          {
+            "Ref": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "RawUploadsPolicyCF594858": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "RawUploadsA47B37A6",
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "RawUploadsA47B37A6",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "RawUploadsA47B37A6",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::S3::BucketPolicy",
+    },
+    "TestDbSecret5236E3503fdaad7efa858a3daf9490cf0a702aeb": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Generated by the CDK for stack: ",
+              {
+                "Ref": "AWS::StackName",
+              },
+            ],
+          ],
+        },
+        "GenerateSecretString": {
+          "ExcludeCharacters": " %+~\`#$&*()|[]{}:;<>?!'/@"\\",
+          "GenerateStringKey": "password",
+          "PasswordLength": 30,
+          "SecretStringTemplate": "{"username":"spl"}",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::SecretsManager::Secret",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "Tiles6A3958EB": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256",
+              },
+            },
+          ],
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true,
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "TilesPolicyAF7D144E": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "Tiles6A3958EB",
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Tiles6A3958EB",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "Tiles6A3958EB",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": "s3:GetObject",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition",
+                        },
+                        ":cloudfront::",
+                        {
+                          "Ref": "AWS::AccountId",
+                        },
+                        ":distribution/",
+                        {
+                          "Ref": "Cdn9963B1AD",
+                        },
+                      ],
+                    ],
+                  },
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com",
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "Tiles6A3958EB",
+                        "Arn",
+                      ],
+                    },
+                    "/*",
+                  ],
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::S3::BucketPolicy",
+    },
+    "UploadNotifier76DDA296": {
+      "DependsOn": [
+        "UploadNotifierServiceRoleDefaultPolicyCF54E291",
+        "UploadNotifierServiceRole9B8660E9",
+      ],
+      "Properties": {
+        "Architectures": [
+          "arm64",
+        ],
+        "Code": {
+          "ZipFile": "
+import json, os, boto3
+s3 = boto3.client("s3"); sqs = boto3.client("sqs")
+MAGIC = {b"LASF": "las", b"ASTM": "e57", b"ply\\n": "ply"}
+def handler(event, _ctx):
+    for rec in event["Records"]:
+        b, k = rec["s3"]["bucket"]["name"], rec["s3"]["object"]["key"]
+        head = s3.get_object(Bucket=b, Key=k, Range="bytes=0-3")["Body"].read()
+        fmt = MAGIC.get(head) or (k.rsplit(".", 1)[-1].lower() if k.lower().endswith((".pts", ".xyz")) else None)
+        if fmt is None:
+            print(json.dumps({"rejected": k, "magic": head.hex()})); continue
+        sqs.send_message(QueueUrl=os.environ["QUEUE_URL"], MessageBody=json.dumps({"bucket": b, "key": k, "format": fmt}))
+",
+        },
+        "Environment": {
+          "Variables": {
+            "QUEUE_URL": {
+              "Ref": "IngestQueue2280FF4E",
+            },
+          },
+        },
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "UploadNotifierServiceRole9B8660E9",
+            "Arn",
+          ],
+        },
+        "Runtime": "python3.13",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "Timeout": 30,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "UploadNotifierLogRetention06F708C4": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "UploadNotifier76DDA296",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 14,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "UploadNotifierServiceRole9B8660E9": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "UploadNotifierServiceRoleDefaultPolicyCF54E291": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "RawUploadsA47B37A6",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "RawUploadsA47B37A6",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "sqs:SendMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestQueue2280FF4E",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "UploadNotifierServiceRoleDefaultPolicyCF54E291",
+        "Roles": [
+          {
+            "Ref": "UploadNotifierServiceRole9B8660E9",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "Vpc8378EB38": {
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true,
+        "InstanceTenancy": "default",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc",
+          },
+        ],
+      },
+      "Type": "AWS::EC2::VPC",
+    },
+    "VpcIGWD7BA715C": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc",
+          },
+        ],
+      },
+      "Type": "AWS::EC2::InternetGateway",
+    },
+    "VpcS3A5408339": {
+      "Properties": {
+        "RouteTableIds": [
+          {
+            "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+          },
+          {
+            "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+          },
+          {
+            "Ref": "VpcdbSubnet1RouteTable04184FDD",
+          },
+          {
+            "Ref": "VpcdbSubnet2RouteTable7BBEF14D",
+          },
+        ],
+        "ServiceName": {
+          "Fn::Join": [
+            "",
+            [
+              "com.amazonaws.",
+              {
+                "Ref": "AWS::Region",
+              },
+              ".s3",
+            ],
+          ],
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc",
+          },
+        ],
+        "VpcEndpointType": "Gateway",
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCEndpoint",
+    },
+    "VpcVPCGWBF912B6E": {
+      "Properties": {
+        "InternetGatewayId": {
+          "Ref": "VpcIGWD7BA715C",
+        },
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+    },
+    "VpcdbSubnet1RouteTable04184FDD": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/dbSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcdbSubnet1RouteTableAssociation3FF66701": {
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcdbSubnet1RouteTable04184FDD",
+        },
+        "SubnetId": {
+          "Ref": "VpcdbSubnet1Subnet1B82B149",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcdbSubnet1Subnet1B82B149": {
+      "Properties": {
+        "AvailabilityZone": "dummy1a",
+        "CidrBlock": "10.0.128.0/18",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "db",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Isolated",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/dbSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcdbSubnet2RouteTable7BBEF14D": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/dbSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcdbSubnet2RouteTableAssociation3D000840": {
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcdbSubnet2RouteTable7BBEF14D",
+        },
+        "SubnetId": {
+          "Ref": "VpcdbSubnet2Subnet01192A3B",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcdbSubnet2Subnet01192A3B": {
+      "Properties": {
+        "AvailabilityZone": "dummy1b",
+        "CidrBlock": "10.0.192.0/18",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "db",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Isolated",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/dbSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcpublicSubnet1DefaultRouteB88F9E93": {
+      "DependsOn": [
+        "VpcVPCGWBF912B6E",
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "VpcIGWD7BA715C",
+        },
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+        },
+      },
+      "Type": "AWS::EC2::Route",
+    },
+    "VpcpublicSubnet1RouteTable15C15F8E": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/publicSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcpublicSubnet1RouteTableAssociation4E83B6E4": {
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+        },
+        "SubnetId": {
+          "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcpublicSubnet1Subnet2BB74ED7": {
+      "Properties": {
+        "AvailabilityZone": "dummy1a",
+        "CidrBlock": "10.0.0.0/18",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "public",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Public",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/publicSubnet1",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "VpcpublicSubnet2DefaultRoute732F0BEB": {
+      "DependsOn": [
+        "VpcVPCGWBF912B6E",
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "VpcIGWD7BA715C",
+        },
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+        },
+      },
+      "Type": "AWS::EC2::Route",
+    },
+    "VpcpublicSubnet2RouteTableAssociationCCE257FF": {
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+        },
+        "SubnetId": {
+          "Ref": "VpcpublicSubnet2SubnetE34B022A",
+        },
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+    },
+    "VpcpublicSubnet2RouteTableC5A6DF77": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/publicSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::RouteTable",
+    },
+    "VpcpublicSubnet2SubnetE34B022A": {
+      "Properties": {
+        "AvailabilityZone": "dummy1b",
+        "CidrBlock": "10.0.64.0/18",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+          {
+            "Key": "aws-cdk:subnet-name",
+            "Value": "public",
+          },
+          {
+            "Key": "aws-cdk:subnet-type",
+            "Value": "Public",
+          },
+          {
+            "Key": "Name",
+            "Value": "Test/Vpc/publicSubnet2",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::Subnet",
+    },
+    "WorkerQueueProcessingFargateServiceC55E51B1": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "CapacityProviderStrategy": [
+          {
+            "CapacityProvider": "FARGATE_SPOT",
+            "Weight": 4,
+          },
+          {
+            "CapacityProvider": "FARGATE",
+            "Weight": 1,
+          },
+        ],
+        "Cluster": {
+          "Ref": "ClusterEB0386A7",
+        },
+        "DeploymentConfiguration": {
+          "Alarms": {
+            "AlarmNames": [],
+            "Enable": false,
+            "Rollback": false,
+          },
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true,
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 0,
+        },
+        "DeploymentController": {
+          "Type": "ECS",
+        },
+        "EnableECSManagedTags": false,
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "SecurityGroups": [
+              {
+                "Fn::GetAtt": [
+                  "WorkerQueueProcessingFargateServiceSecurityGroupF7A39A5F",
+                  "GroupId",
+                ],
+              },
+            ],
+            "Subnets": [
+              {
+                "Ref": "VpcpublicSubnet1Subnet2BB74ED7",
+              },
+              {
+                "Ref": "VpcpublicSubnet2SubnetE34B022A",
+              },
+            ],
+          },
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "TaskDefinition": {
+          "Ref": "WorkerQueueProcessingTaskDef48FA8152",
+        },
+      },
+      "Type": "AWS::ECS::Service",
+    },
+    "WorkerQueueProcessingFargateServiceSecurityGroupF7A39A5F": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "GroupDescription": "Test/Worker/QueueProcessingFargateService/SecurityGroup",
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic by default",
+            "IpProtocol": "-1",
+          },
+        ],
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::SecurityGroup",
+    },
+    "WorkerQueueProcessingFargateServiceTaskCountTarget32F233C6": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "MaxCapacity": 8,
+        "MinCapacity": 0,
+        "ResourceId": {
+          "Fn::Join": [
+            "",
+            [
+              "service/",
+              {
+                "Ref": "ClusterEB0386A7",
+              },
+              "/",
+              {
+                "Fn::GetAtt": [
+                  "WorkerQueueProcessingFargateServiceC55E51B1",
+                  "Name",
+                ],
+              },
+            ],
+          ],
+        },
+        "RoleARN": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":iam::123456789012:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService",
+            ],
+          ],
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+    },
+    "WorkerQueueProcessingFargateServiceTaskCountTargetCpuScalingC7243423": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "PolicyName": "TestWorkerQueueProcessingFargateServiceTaskCountTargetCpuScaling4AB27A74",
+        "PolicyType": "TargetTrackingScaling",
+        "ScalingTargetId": {
+          "Ref": "WorkerQueueProcessingFargateServiceTaskCountTarget32F233C6",
+        },
+        "TargetTrackingScalingPolicyConfiguration": {
+          "PredefinedMetricSpecification": {
+            "PredefinedMetricType": "ECSServiceAverageCPUUtilization",
+          },
+          "TargetValue": 50,
+        },
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+    },
+    "WorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingLowerAlarmC2990CB9": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "WorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingLowerPolicy1C73E79B",
+          },
+        ],
+        "AlarmDescription": "Lower threshold scaling alarm",
+        "ComparisonOperator": "LessThanOrEqualToThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "IngestQueue2280FF4E",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "Threshold": 0,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "WorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingLowerPolicy1C73E79B": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "PolicyName": "TestWorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingLowerPolicy16DF171B",
+        "PolicyType": "StepScaling",
+        "ScalingTargetId": {
+          "Ref": "WorkerQueueProcessingFargateServiceTaskCountTarget32F233C6",
+        },
+        "StepScalingPolicyConfiguration": {
+          "AdjustmentType": "ChangeInCapacity",
+          "MetricAggregationType": "Maximum",
+          "StepAdjustments": [
+            {
+              "MetricIntervalUpperBound": 0,
+              "ScalingAdjustment": -1,
+            },
+          ],
+        },
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+    },
+    "WorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingUpperAlarm7D8017DC": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "WorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingUpperPolicyEFA96444",
+          },
+        ],
+        "AlarmDescription": "Upper threshold scaling alarm",
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "IngestQueue2280FF4E",
+                "QueueName",
+              ],
+            },
+          },
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "Threshold": 1,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "WorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingUpperPolicyEFA96444": {
+      "DependsOn": [
+        "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+      ],
+      "Properties": {
+        "PolicyName": "TestWorkerQueueProcessingFargateServiceTaskCountTargetQueueMessagesVisibleScalingUpperPolicy46D724D7",
+        "PolicyType": "StepScaling",
+        "ScalingTargetId": {
+          "Ref": "WorkerQueueProcessingFargateServiceTaskCountTarget32F233C6",
+        },
+        "StepScalingPolicyConfiguration": {
+          "AdjustmentType": "ChangeInCapacity",
+          "MetricAggregationType": "Maximum",
+          "StepAdjustments": [
+            {
+              "MetricIntervalLowerBound": 0,
+              "MetricIntervalUpperBound": 19,
+              "ScalingAdjustment": 1,
+            },
+            {
+              "MetricIntervalLowerBound": 19,
+              "ScalingAdjustment": 3,
+            },
+          ],
+        },
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+    },
+    "WorkerQueueProcessingTaskDef48FA8152": {
+      "Properties": {
+        "ContainerDefinitions": [
+          {
+            "Command": [
+              "python",
+              "-m",
+              "app.worker",
+            ],
+            "Environment": [
+              {
+                "Name": "SPL_STORAGE",
+                "Value": "s3",
+              },
+              {
+                "Name": "SPL_RAW_BUCKET",
+                "Value": {
+                  "Ref": "RawUploadsA47B37A6",
+                },
+              },
+              {
+                "Name": "SPL_TILES_BUCKET",
+                "Value": {
+                  "Ref": "Tiles6A3958EB",
+                },
+              },
+              {
+                "Name": "SPL_QUEUE_URL",
+                "Value": {
+                  "Ref": "IngestQueue2280FF4E",
+                },
+              },
+              {
+                "Name": "SPL_DEV_AUTH",
+                "Value": "0",
+              },
+              {
+                "Name": "SPL_SEED",
+                "Value": "0",
+              },
+              {
+                "Name": "QUEUE_NAME",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "IngestQueue2280FF4E",
+                    "QueueName",
+                  ],
+                },
+              },
+            ],
+            "Essential": true,
+            "Image": {
+              "Fn::Join": [
+                "",
+                [
+                  {
+                    "Fn::Select": [
+                      4,
+                      {
+                        "Fn::Split": [
+                          ":",
+                          {
+                            "Fn::GetAtt": [
+                              "BackendRepo7FFBAD06",
+                              "Arn",
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  ".dkr.ecr.",
+                  {
+                    "Fn::Select": [
+                      3,
+                      {
+                        "Fn::Split": [
+                          ":",
+                          {
+                            "Fn::GetAtt": [
+                              "BackendRepo7FFBAD06",
+                              "Arn",
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  ".",
+                  {
+                    "Ref": "AWS::URLSuffix",
+                  },
+                  "/",
+                  {
+                    "Ref": "BackendRepo7FFBAD06",
+                  },
+                  ":latest",
+                ],
+              ],
+            },
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "WorkerQueueProcessingTaskDefQueueProcessingContainerLogGroupDDE655D4",
+                },
+                "awslogs-region": "ap-northeast-1",
+                "awslogs-stream-prefix": "worker",
+              },
+            },
+            "Name": "QueueProcessingContainer",
+            "Secrets": [
+              {
+                "Name": "SPL_DB_HOST",
+                "ValueFrom": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "DbSecretAttachment7AED447C",
+                      },
+                      ":host::",
+                    ],
+                  ],
+                },
+              },
+              {
+                "Name": "SPL_DB_PASSWORD",
+                "ValueFrom": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "DbSecretAttachment7AED447C",
+                      },
+                      ":password::",
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+        "Cpu": "4096",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "WorkerQueueProcessingTaskDefExecutionRole0582E03C",
+            "Arn",
+          ],
+        },
+        "Family": "TestWorkerQueueProcessingTaskDef486B3645",
+        "Memory": "16384",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE",
+        ],
+        "RuntimePlatform": {
+          "CpuArchitecture": "ARM64",
+          "OperatingSystemFamily": "LINUX",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::ECS::TaskDefinition",
+    },
+    "WorkerQueueProcessingTaskDefExecutionRole0582E03C": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "WorkerQueueProcessingTaskDefExecutionRoleDefaultPolicy15480ECA": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BackendRepo7FFBAD06",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": "ecr:GetAuthorizationToken",
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+            {
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "WorkerQueueProcessingTaskDefQueueProcessingContainerLogGroupDDE655D4",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "DbSecretAttachment7AED447C",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "WorkerQueueProcessingTaskDefExecutionRoleDefaultPolicy15480ECA",
+        "Roles": [
+          {
+            "Ref": "WorkerQueueProcessingTaskDefExecutionRole0582E03C",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "WorkerQueueProcessingTaskDefQueueProcessingContainerLogGroupDDE655D4": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "RetentionInDays": 14,
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Tags": [
+          {
+            "Key": "app",
+            "Value": "simple-point-lite",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sqs:ReceiveMessage",
+                "sqs:ChangeMessageVisibility",
+                "sqs:GetQueueUrl",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestQueue2280FF4E",
+                  "Arn",
+                ],
+              },
+            },
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "RawUploadsA47B37A6",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "RawUploadsA47B37A6",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*",
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Tiles6A3958EB",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "Tiles6A3958EB",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": "cloudwatch:PutMetricData",
+              "Condition": {
+                "StringEquals": {
+                  "cloudwatch:namespace": "SimplePoint",
+                },
+              },
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "WorkerQueueProcessingTaskDefTaskRoleDefaultPolicy82CD0F9D",
+        "Roles": [
+          {
+            "Ref": "WorkerQueueProcessingTaskDefTaskRoleCFC5BD1B",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;

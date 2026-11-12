@@ -196,3 +196,32 @@ Not yet verified: real-time FPS on a visible GPU window (the pane was hidden dur
 | Photo overlay vs 3D projection, all 12 photos, 8 control-point sightings (browser) | worst **0.25 px** on screen |
 | 12-photo flight rendered at startup | ~6 s |
 | 3DGS layer, 400 k Gaussians | loaded and rendered in 2.0 s |
+
+---
+
+## Phases 8–9: offline/WASM, AWS, packaging, final verification (2026-11-12)
+
+### Implementation
+- **Offline mode:** browser LAS reader + LAZ via laz-perf (WASM) and a TypeScript port of the octree builder, run in a Web Worker. Verified against laspy-written files and node-for-node against the Python builder (deterministic mode).
+- **AWS CDK stack** (`infra/`): S3 raw (lifecycle) → Lambda header check → SQS (+DLQ) → Fargate **Spot** ARM64 workers scaling 0–8 on queue depth; API on Fargate behind ALB + CloudFront (tiles edge-cached); RDS PostgreSQL t4g.micro in isolated subnets; **no NAT gateways**; least-privilege IAM; 14-day logs; AWS Budgets alarm. 10 assertion tests encode these properties; `cdk synth` is clean.
+- `app/worker.py`: the SQS → S3 → octree → tiles worker the stack runs, unit-tested with an in-memory S3 double.
+- Dockerfiles (API/worker, nginx SPA) and docker-compose with PostgreSQL; `pyproject.toml` made installable (setuptools package discovery).
+- README with a 5-minute interview demo script; `docs/ARCHITECTURE.md` with the precision design and a rough AWS cost model.
+
+### What verification caught
+1. **Offline open of a 3 M-point LAZ took 33 s.** The TS octree sorted millions of small objects per level. Typed-array keys + index sort brought the build to 2.2 s for 3 M points, and a single reused DataView sped up decoding. Now 23 s total, dominated by laz-perf's point-at-a-time WASM API.
+2. **The CDK stack referenced `python -m app.worker`, which didn't exist yet.** The worker was implemented and tested, so the IaC doesn't describe code that isn't there.
+3. **Packaging:** without `[tool.setuptools.packages.find]`, `pip install -e .` (used by CI and Docker) fails on flat-layout discovery. Fixed and verified by building a wheel.
+4. **IAM test bug (test, not stack):** the first least-privilege assertion matched whole policy documents and flagged the API (raw `PutObject` + tiles read in one document). It was rewritten to check per statement; the API can only `PutObject` to `uploads/*`.
+5. **Spec wording vs data:** the volume spec claimed "a finer grid is not worse", but 0.1 m (0.032 %) is slightly worse than 0.25 m (0.020 %): noise starts to outweigh discretisation. The spec was corrected to match the measurement.
+
+### Final state
+- `scripts/verify.ps1`: **158 tests pass** (98 pytest, 50 vitest, 10 CDK) + `tsc`; `VERIFICATION_REPORT.md` regenerated: every accuracy check passes, plus 3 informational findings and 1 designed failure (naive float32).
+- Browser checks (automated through the real UI): measurement 5.010 % on the 5 % ramp (server and offline layers), section, volume (+0.026 % after cleaning), change detection, as-built FAIL at the known over-dig, photo alignment ≤ 0.25 px, 3DGS layer, offline LAZ.
+
+### Not done / not verified (honest list)
+- **Docker images were not built:** Docker isn't installed on the build machine. The Dockerfiles and compose file are written but untested.
+- **No AWS deployment** (by design). The API's S3 storage adapter is not implemented; the worker is.
+- **Real-time FPS was not measured on a visible GPU window.** The browser pane was hidden during automated checks, and the HUD FPS figures came from manual frame stepping.
+- **SfM spike (pycolmap) not done** (stretch). Umeyama georeferencing, its core maths, is implemented and tested.
+- EN/日本語 UI label toggle (stretch) not done. The GitHub repo isn't pushed, so the CI workflow hasn't run on GitHub yet.

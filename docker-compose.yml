@@ -1,0 +1,33 @@
+# Local stack: PostgreSQL + API (seeds the synthetic Toyosu site on first start) + web.
+#   docker compose up --build        then open http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: spl
+      POSTGRES_PASSWORD: spl-local-only
+      POSTGRES_DB: spl
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spl"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    build: { context: ., dockerfile: docker/backend.Dockerfile }
+    environment:
+      SPL_DATABASE_URL: postgresql+psycopg://spl:spl-local-only@db:5432/spl
+      SPL_SEED: "1"
+      SPL_SEED_DENSITY: "100"
+    volumes: [spldata:/data]
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build: { context: ., dockerfile: docker/frontend.Dockerfile }
+    ports: ["8080:8080"]
+    depends_on: [backend]
+
+volumes:
+  pgdata:
+  spldata:

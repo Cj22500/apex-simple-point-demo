@@ -7,11 +7,12 @@ Source: https://cdn.proj.org (see jp_gsi_README.txt there). Usage: python script
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import urllib.request
 
 GRIDS = ["jp_gsi_jpgeo2024.tif", "jp_gsi_gsigeo2011.tif"]
-DEST = pathlib.Path(__file__).resolve().parents[1] / "data" / "proj"
+DEST = pathlib.Path(os.environ.get("SPL_PROJ_GRID_DIR") or pathlib.Path(__file__).resolve().parents[1] / "data" / "proj")
 
 
 def main() -> None:

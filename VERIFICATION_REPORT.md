@@ -1,14 +1,15 @@
 # Verification report
 
-Generated 2026-11-12 12:09 by `scripts/verify.py`. Ground truth is independent of the code under test: analytic geometry, 50-digit decimal arithmetic, or GSI (国土地理院) official calculators. Tolerances come from `docs/specs/`.
+Generated 2026-11-12 12:30 by `scripts/verify.py`. Ground truth is independent of the code under test: analytic geometry, 50-digit decimal arithmetic, or GSI (国土地理院) official calculators. Tolerances come from `docs/specs/`.
 
 ## Test suites
 
 | Suite | Result | Summary | Time |
 |---|---|---|---|
-| Backend (pytest) | pass | 83 passed in 26.77s | 28.2 s |
-| Frontend (vitest) | pass | 38 passed (38) | 2.0 s |
-| Frontend (tsc) | pass | no type errors | 1.5 s |
+| Backend (pytest) | pass | 98 passed in 28.51s | 29.9 s |
+| Frontend (vitest) | pass | 50 passed (50) | 1.6 s |
+| Frontend (tsc) | pass | no type errors | 1.4 s |
+| Infra (CDK snapshot) | pass | 10 passed (10) | 4.0 s |
 
 ## Measured accuracy
 
@@ -40,6 +41,12 @@ Generated 2026-11-12 12:09 by `scripts/verify.py`. Ground truth is independent o
 | Check | Measured | Tolerance | Status |
 |---|---|---|---|
 | cross-tenant probes answered 404 (5 endpoints) | 0 leaks | 0 leaks | pass |
+
+### 3DGS export
+
+| Check | Measured | Tolerance | Status |
+|---|---|---|---|
+| splat PLY positions (float32 relative to origin) vs source | 0.00190657 mm | 0.1 mm | pass |
 
 ### As-built
 
@@ -87,6 +94,14 @@ Generated 2026-11-12 12:09 by `scripts/verify.py`. Ground truth is independent o
 |---|---|---|---|
 | decoded float64(center)+float32(offset) vs source, 178,064 pts | 0.00381434 mm | 0.05 mm | pass |
 | TS decode of Python-encoded node (257 pts, ±100 m offsets) | 0.00379639 mm | 0.05 mm | pass |
+| TS offline builder vs Python: nodes with different point sets (of 23) | 0 nodes | 0 nodes | pass |
+
+### Photos
+
+| Check | Measured | Tolerance | Status |
+|---|---|---|---|
+| camera position after EXIF GPS + geoid round trip | 0.018573 mm | 1 mm | pass |
+| control-point reprojection: true pose vs pose read from EXIF/XMP | 0.00351656 px | 0.5 px | pass |
 
 ### SIMA
 
@@ -127,6 +142,13 @@ Generated 2026-11-12 12:09 by `scripts/verify.py`. Ground truth is independent o
 | Check | Measured | Tolerance | Status |
 |---|---|---|---|
 | DEM pixel centre -> world vs DEM grid | 0 mm | 0.1 mm | pass |
+
+### Offline (browser) reader
+
+| Check | Measured | Tolerance | Status |
+|---|---|---|---|
+| small.las: coordinates vs laspy input | 1.77636e-12 mm | 0.1 mm | pass |
+| small.laz: coordinates vs laspy input | 1.77636e-12 mm | 0.1 mm | pass |
 
 ### Measurements (TypeScript)
 
