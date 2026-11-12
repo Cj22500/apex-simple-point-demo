@@ -1,0 +1,74 @@
+# AI agent work log: Simple-Point Lite
+
+How this project was built: a human engineer directing Claude Code (Anthropic) as the main implementation agent. Each feature follows **spec → measurable acceptance criteria → implementation → independent verification → review**. This log is written during the work, not afterwards. It records what the agent got wrong as well as what it got right.
+
+- Specs with acceptance criteria: [`docs/specs/`](docs/specs/)
+- Measured results: [`VERIFICATION_REPORT.md`](VERIFICATION_REPORT.md) (regenerate with `scripts/verify.ps1`)
+- Review checklist applied to every phase: [`docs/REVIEW_CHECKLIST.md`](docs/REVIEW_CHECKLIST.md)
+
+## Working rules
+1. **Ground truth must be independent of the code under test.** Analytic geometry, 50-digit `decimal` arithmetic, or official GSI (国土地理院) calculators. Never "the function's own output from yesterday".
+2. **Tolerances are written in the spec before the code**, and come from primary sources (MLIT, GSI) where a standard exists.
+3. **The same golden vectors are used by Python and TypeScript** (`shared/golden/`), so the two implementations can't drift.
+4. When the agent proposes a number from memory (a tolerance, a spec field), it is either verified against a primary source or marked as unverified.
+
+---
+
+## Phase 0: setup, environment, specs (2026-11-12)
+
+### Environment check
+- Python 3.14.5: confirmed binary wheels exist for every dependency, including the risky ones (`lazrs`, `pyproj`, `pye57`, `rasterio`, `pycolmap`). No need to fall back to 3.12.
+- Node 24.15, TypeScript 7, Vite 8, Vitest 5, Three.js 0.187.
+- Note: `npm` fails inside Git Bash on this machine (fnm shim without env). All Node commands run through PowerShell.
+
+### Finding 1: Japan's geoid changed (important for any height output)
+- **What happened:** The plan said "geoid = GSIGEO2011". While checking sources, the agent found that GSI switched Japan's height reference to **JPGEO2024** on **2025-04-01**.
+- **Verified:** The PROJ CDN has both grids (`jp_gsi_jpgeo2024.tif`, `jp_gsi_gsigeo2011.tif`). At 7 Kanto points, PROJ + JPGEO2024 agrees with the GSI web calculator within **0.05 mm**. GSIGEO2011 differs from JPGEO2024 by **8–11 cm** in the Tokyo area.
+- **Decision:** JPGEO2024 is the default; GSIGEO2011 is kept for legacy deliverables. The spec was updated (`docs/specs/crs-geoid.md`).
+- **Why it matters:** a tool still on the 2011 model reports heights ~10 cm off in Tokyo, which is far outside any construction tolerance.
+
+### Finding 2: authoritative reference values, not self-consistency
+- GSI's calculators have JSON endpoints (`bl2xy.pl`, `geoidcalc.pl`). The agent fetched reference values for 7 points (Tokyo Station, Shibuya/Jingumae, Tsukuba, Yokohama, Chiba, Utsunomiya, the Zone IX origin) into `shared/golden/crs.json`, with source URLs.
+- The GSI server rate-limited 4 of 7 geoid requests (`サーバが混み合っております`). The agent retried with 4 s spacing instead of hammering the service.
+
+### Finding 3: MLIT as-built tolerances come from the PDF, not from memory
+- The agent's first draft of the as-built spec recalled tolerances from memory. They were not trusted.
+- A web-fetch sub-agent could not read the MLIT PDFs (compressed streams). It reported this honestly and **refused to fill in numbers from memory**.
+- The PDFs were extracted locally with `pypdf`. Verified values for excavation (掘削工, 面管理): flat areas mean **±50 mm**, individual **±150 mm**; slopes **±70 / ±160 mm**; density **≥ 1 pt/m²**; ±5 cm crest/toe exclusion (Kinki Regional Bureau standard, p.2), and measurement accuracy ±50 mm with 1 m evaluation grids (MLIT 2025 guideline, p.9). Cited in `docs/specs/asbuilt.md`.
+
+### Open question recorded
+- SIMA: the brief mentions `D01` records. The sources available document `D00 / B01 / D99` for parcel blocks, and the official JSIMA booklet isn't freely available. The parser handles any `Dxx` generically. **To confirm with APEX.**
+
+### Deliverables
+Specs (`measurement`, `crs-geoid`, `earthwork-volume`, `asbuilt`, `sima-dxf`), review checklist, PR template, GitHub Actions CI, golden vectors (`scripts/make_golden.py` computes them with 50-digit decimals), `scripts/verify.py` (runs all suites and writes the report with measured errors).
+
+---
+
+## Phase 1: geo math core (2026-11-12)
+
+### Spec → acceptance criteria
+`docs/specs/measurement.md` (≤ 0.1 mm, target 1 µm; null grade for vertical pairs; float32 failure demonstrated) and `docs/specs/crs-geoid.md` (≤ 0.1 mm vs GSI; X = north).
+
+### Implementation
+- `frontend/src/geo/measure.ts` + `backend/app/core/measure.py`: same formulas, float64. Polygon area shifts to the first vertex before the shoelace (raw products at Tokyo scale are ~1e9 m² and would lose sub-mm² precision).
+- `frontend/src/geo/precision.ts`: float64 origin + float32 offsets, plus a deliberately naive float32 path for the comparison test.
+- `backend/app/core/crs.py`: pyproj with authority axis order (lat, lon) → (X north, Y east); geoid via a PROJ `vgridshift` pipeline; constant-N fallback that is **always flagged** `approximate: true`; out-of-coverage raises.
+- `backend/app/core/align.py`: Umeyama similarity transform (for SfM → RTK georeferencing).
+
+### What verification caught
+1. **Test design error (agent):** the "naive float32 fails" test used a 0.1 mm pair. In float32, the two points collapse onto the *same* value, so the error is *exactly* 0.1000 mm, right on the ≤ 0.1 mm boundary, and the assertion `> 1e-4` failed. Fixed by asserting the collapse explicitly (distance = 0) and testing a 0.3 mm pair, where only 0 or 0.488 mm are representable.
+2. **Over-claim (agent):** the agent first claimed the offset method is accurate to 1e-7 m. The measured residual was **1.36e-7 m** (float32 rounding of a 33 m offset). The bound was corrected to 1 µm, still 100× inside the tolerance, and the reasoning (ulp of the offset) is written in the test.
+3. **Edit error (agent):** an edit inserted the metric call inside a loop with the wrong indentation, and pytest collection failed. Caught immediately by running the suite.
+
+### Results (from VERIFICATION_REPORT.md)
+| Check | Measured | Tolerance |
+|---|---|---|
+| Measurements, 9 golden cases (Py and TS) | 1.6e-9 mm | 0.1 mm |
+| Zone IX origin → (0, 0) | 3.2e-5 mm | 0.1 mm |
+| lat/lon → Zone IX vs GSI (7 pts) | 0.047 mm | 0.1 mm |
+| JPGEO2024 geoid vs GSI (7 pts) | 0.045 mm | 0.1 mm |
+| Naive float32, 0.3 mm pair | 0.3 mm error | fails as designed |
+| Float64 origin + float32 offset | 0.00014 mm | 0.1 mm |
+
+### Review (checklist)
+Axis order tested explicitly (`test_axis_order_is_x_north_y_east`); heights named h/N/H; no absolute float32; edge cases (zero-length, vertical, degenerate Umeyama input) covered.

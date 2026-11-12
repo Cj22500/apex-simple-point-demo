@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Node
+node_modules/
+dist/
+coverage/
+cdk.out/
+*.tsbuildinfo
+
+# Generated data (regenerate with scripts/gen_site.py and scripts/fetch_grids.py)
+data/
+!data/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

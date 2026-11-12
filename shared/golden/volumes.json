@@ -1,0 +1,24 @@
+{
+  "description": "Analytic earthwork volumes used as ground truth (m^3).",
+  "pit_box": {
+    "length": 20.0,
+    "width": 10.0,
+    "depth": 3.0,
+    "volume": 600.0
+  },
+  "stockpile_frustum": {
+    "R": 8.0,
+    "r": 2.0,
+    "h": 4.0,
+    "volume": 351.85837720205683
+  },
+  "square_pyramid": {
+    "base": 10.0,
+    "height": 6.0,
+    "volume": 200.0
+  },
+  "half_cut_pyramid_ref_3m": {
+    "comment": "Square pyramid base 10, height 6, reference plane at z = 3: fill above ref = volume of top similar pyramid (scale 1/2) = 200/8",
+    "cut_above_ref": 25.0
+  }
+}

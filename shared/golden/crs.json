@@ -1,0 +1,34 @@
+{
+  "description": "Reference values from the Geospatial Information Authority of Japan (GSI) official web calculators, retrieved 2026-11-12. Plane coordinates: JGD2011 Japan Plane Rectangular CS Zone IX (EPSG:6677), X = northing, Y = easting (Japanese surveying convention). Geoid: JPGEO2024 (official since 2025-04-01). GSI publishes values rounded to 0.1 mm.",
+  "sources": {
+    "plane": "https://vldb.gsi.go.jp/sokuchi/surveycalc/surveycalc/bl2xy.pl?outputType=json&refFrame=2&zone=9&latitude=<lat>&longitude=<lon>",
+    "geoid": "https://vldb.gsi.go.jp/sokuchi/surveycalc/geoid/calcgh/cgi/geoidcalc.pl?outputType=json&latitude=<lat>&longitude=<lon>"
+  },
+  "tolerance": {
+    "plane_m": 0.0001,
+    "geoid_m": 0.0001,
+    "comment": "GSI output is rounded to 0.1 mm, so agreement within 0.1 mm is the strictest meaningful check."
+  },
+  "points": [
+    {"name": "tokyo_station",    "lat": 35.6812, "lon": 139.7671,          "X": -35367.2301, "Y": -5995.1852,  "N_jpgeo2024": 36.7613},
+    {"name": "shibuya_jingumae", "lat": 35.6687, "lon": 139.7059,          "X": -36748.5441, "Y": -11536.5735, "N_jpgeo2024": 36.9110},
+    {"name": "tsukuba_gsi",      "lat": 36.1040, "lon": 140.0874,          "X": 11568.5681,  "Y": 22875.2078,  "N_jpgeo2024": 40.2851},
+    {"name": "yokohama",         "lat": 35.4437, "lon": 139.6380,          "X": -61699.9283, "Y": -17733.0701, "N_jpgeo2024": 36.3944},
+    {"name": "chiba",            "lat": 35.6074, "lon": 140.1065,          "X": -43522.3714, "Y": 24748.7666,  "N_jpgeo2024": 34.8973},
+    {"name": "utsunomiya",       "lat": 36.5551, "lon": 139.8828,          "X": 61591.1823,  "Y": 4428.1884,   "N_jpgeo2024": 42.3840},
+    {"name": "zone9_origin",     "lat": 36.0,    "lon": 139.8333333333333, "X": 0.0,         "Y": 0.0,         "N_jpgeo2024": 39.3959}
+  ],
+  "gsigeo2011_reference": {
+    "description": "GSIGEO2011 reference values published with the PROJ grid jp_gsi_gsigeo2011.tif (validated by PROJ against the GSI calculator before the 2025 switch). Source: https://cdn.proj.org/jp_gsi_README.txt",
+    "tolerance_m": 0.0001,
+    "points": [
+      {"lat": 34.290, "lon": 135.630, "N": 39.8601},
+      {"lat": 36.103, "lon": 140.087, "N": 40.1817},
+      {"lat": 43.217, "lon": 143.129, "N": 30.6389},
+      {"lat": 38.675, "lon": 139.886, "N": 40.1281},
+      {"lat": 36.344, "lon": 137.654, "N": 42.8956},
+      {"lat": 33.179, "lon": 130.063, "N": 32.3036},
+      {"lat": 39.801, "lon": 141.322, "N": 41.8862}
+    ]
+  }
+}
