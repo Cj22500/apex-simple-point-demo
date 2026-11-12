@@ -126,6 +126,38 @@ def ingest_file(app_state, tenant_id: str, project_id: str, name: str, path: Pat
     return dataset_id, job_id
 
 
+def derive_dataset(app_state, parent: Dataset, name: str, kind: str, fn, meta: dict | None = None,
+                   source: list[Dataset] | None = None) -> tuple[str, str]:
+    """Create a child dataset whose points are fn(parent_points, progress) -> (PointSet, report).
+    `source` lets fn receive several input datasets (e.g. change detection A + B)."""
+    sessions, storage, runner = app_state.sessions, app_state.storage, app_state.jobs
+    with sessions() as s:
+        ds = Dataset(tenant_id=parent.tenant_id, project_id=parent.project_id, parent_id=parent.id, name=name,
+                     epoch=parent.epoch, source_format="derived", meta={**(meta or {}), "derivedBy": kind})
+        s.add(ds)
+        s.commit()
+        dataset_id = ds.id
+    inputs = [d.id for d in (source or [parent])]
+
+    def work(progress):
+        try:
+            clouds = [storage.load_arrays(i, mmap=False) for i in inputs]
+            ps, report = fn(*clouds, progress=progress)
+            progress(0.5)
+            result = _process_pointset(storage, sessions, dataset_id, ps, lambda p: progress(0.5 + p / 2))
+            with sessions() as s:
+                d = s.get(Dataset, dataset_id)
+                d.meta = {**d.meta, "report": report}
+                s.commit()
+            return {**result, "report": report}
+        except Exception:
+            _mark_failed(sessions, dataset_id)
+            raise
+
+    job_id = runner.submit(parent.tenant_id, kind, work, dataset_id)
+    return dataset_id, job_id
+
+
 # ------------------------------------------------------------------ demo seed
 def seed_demo(app_state, density: float = 100.0) -> dict:
     """Create demo tenants/users/project and ingest both synthetic epochs (idempotent)."""

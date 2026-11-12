@@ -308,9 +308,14 @@ def generate_site(epoch: str = "A", density: float = 100.0, seed: int = 20261112
                     meta={"epoch": epoch, "density": density, "seed": seed, "points": n})
 
 
+DESIGN_APRON = 5.0  # m of flat pad around the pit included in the as-built evaluation area
+
+
 def design_tin() -> tuple[np.ndarray, np.ndarray]:
-    """Design TIN (absolute E, N, H vertices; triangles) for the pad + pit, triangulated along breaklines."""
-    px0, px1, py0, py1 = PAD
+    """Design TIN (absolute E, N, H vertices; triangles) for the excavation area: the pit plus a
+    5 m flat apron, triangulated along breaklines. The stockpile area is deliberately outside: a
+    material heap on the pad is not part of the finished excavation surface."""
+    px0, px1, py0, py1 = (PIT_TOP[0] - DESIGN_APRON, PIT_TOP[1] + DESIGN_APRON, PIT_TOP[2] - DESIGN_APRON, PIT_TOP[3] + DESIGN_APRON)
     tx0, tx1, ty0, ty1 = PIT_TOP
     ins = PIT_SLOPE_H_PER_V * PIT_DEPTH
     fx0, fx1, fy0, fy1 = tx0 + ins, tx1 - ins, ty0 + ins, ty1 - ins

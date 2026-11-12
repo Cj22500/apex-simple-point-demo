@@ -134,3 +134,38 @@ Upload names never used as paths (temp file + id). Node names validated by regex
 | Picked H vs analytic ramp surface | −1.7 mm, −2.1 mm (σ = 3 mm noise) |
 
 Not yet verified: real-time FPS on a visible GPU window (the pane was hidden during automated checks; FPS figures shown came from manual stepping).
+
+---
+
+## Phases 5–6: analysis pipelines and SIMA/DXF interop (2026-11-12)
+
+### Spec → acceptance criteria
+`docs/specs/earthwork-volume.md`, `docs/specs/asbuilt.md`, `docs/specs/sima-dxf.md`, plus: SOR recall ≥ 99 % with ≤ 0.5 % good points removed; change detection recovers the −45 mm bowl ±2 mm with ≤ 5 mm RMSE on the pad and no bias on slopes; profile grade of the 5 % ramp ±0.01 %.
+
+### Implementation
+- `core/analysis.py`: SOR (k-NN mean distance), corridor profile (station/offset + quantile ground line), M3C2-lite vertical change (robust local plane fit).
+- `core/volume.py`: exact TIN prism integrals (analytic split where a triangle crosses the reference plane), median/mean grid DEM, GeoTIFF export (EPSG:6677).
+- `core/asbuilt.py`: deviation from a design TIN, 平場/法面 classification by facet grade, ±5 cm crest/toe exclusion, 1 m density grid, MLIT tolerances.
+- `core/sima.py` (CP932, X = north), `core/dxf.py` (plan, profile, design TIN 3DFACE import/export).
+- API + UI: section tool with 2D CAD profile (true-scale or exaggerated, ground-snapped measuring, DXF/CSV export, slab clipping in 3D); volume polygon tool; Clean / Change / As-built jobs that create derived datasets; SIMA/DXF/LAZ/GeoTIFF exchange; dataset deletion with lineage protection.
+
+### What verification caught
+1. **TIN without breaklines (finding, not a bug):** a dense-grid TIN of the 1:0.5 pit was 0.013 % off, while a TIN of the 8 breakline vertices is exact. Delaunay chooses arbitrary diagonals across hip lines. Tests now cover both cases, and the spec recommends constrained TIN.
+2. **SOR parameters:** the customary nσ = 2 (PCL default) found only 95.1 % of injected outliers, because ~6 % lie within 0.5 m of the ground and 76 % of those were missed. nσ = 1 → 99.98 % recall, 0 % false removal. The default changed and the trade-off is documented in code and the report.
+3. **Change detection: three real bugs, found by numbers rather than by looking:**
+   - A plain RMS reweight let epoch-A outliers bias plane fits by ~1 m. Fixed with a median/MAD-seeded robust fit.
+   - In the browser run, ΔZ ranged from **−128 m to +210 m**. Diagnosis: 31,275 of 36,222 large values were on building walls, where the ill-conditioned plane fit of a vertical face extrapolates. Vertical change is undefined there; points with gradient > 3 (~72°) are now "unsupported" (NaN, grey in the viewer). The 63° pit walls are still evaluated.
+   - Uncleaned epoch B outliers showed up as "change". The UI now defaults to cleaned epochs.
+   Result on cleaned epochs: p1/p99 = −20.5 / +7.8 mm, and the bowl and stockpile removal are clearly visible.
+4. **As-built design area was wrong (agent design error):** the first design TIN covered the whole pad, so the stockpile counted as +4 m deviation (mean +43 mm, 19,019 failures). As-built (出来形) is evaluated over the excavation only, so the design was redefined as the pit plus a 5 m apron. The result is now realistic: flat mean −1.6 mm (pass), but 116 points exceed ±150 mm at the −200 mm over-dig, so the verdict is **FAIL**, located by the heatmap. Slope mean +0.1 mm, 0 exceedances.
+5. ezdxf returns 3 vertices for triangular 3DFACEs; the design TIN reader handles both forms.
+
+### Results (browser, full 3 M-point epochs)
+| Check | Result |
+|---|---|
+| Clean (SOR) epoch A | 6.2 s total, removed 14,149 points |
+| Stockpile volume, raw scan: grid median 0.25 m / TIN | 351.971 m³ (+0.03 %) / 355.322 m³ (+1.0 %, outliers) |
+| Stockpile volume, cleaned scan: TIN | **351.949 m³ (+0.026 %)** vs analytic 351.858 m³ |
+| Section across the pit | pad 3 m, 1:0.5 walls (measured −1.955 vs −1.994 along the skewed line), floor 0 m, defect visible |
+| Change A→B (cleaned) | 15.1 s; settlement bowl and stockpile removal visible; walls unsupported |
+| As-built (cleaned A) | FAIL: 116 flat points beyond ±150 mm at the over-dig; slope PASS; density 600/600 |

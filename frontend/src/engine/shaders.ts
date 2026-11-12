@@ -72,7 +72,7 @@ void main() {
   } else if (uColorMode == 3) {
     vColor = uClassColors[int(classification) & 15];
   } else {
-    if (uHasDz > 0.5) {
+    if (uHasDz > 0.5 && !isnan(dz)) {
       float t = clamp(0.5 + dz / (2.0 * uDzRange), 0.0, 1.0);
       vColor = texture(uDivergingMap, vec2(t, 0.5)).rgb;
     } else {

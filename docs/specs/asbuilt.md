@@ -18,6 +18,9 @@ After construction, the contractor proves that the finished surface matches the 
 - When the tolerance changes across the area, the area is split into evaluation sections, or the strictest value is used.
 - Other work types (embankment 盛土工, river works, dredging) have different values and are configurable via the tolerance table. Only the excavation table above is verified in this spec.
 
+## Evaluation area
+The design TIN defines the evaluation area. For the synthetic site it is the excavation: the pit plus a 5 m flat apron, triangulated along its breaklines (18 triangles; downloadable as `design_tin.dxf`). Material heaps such as the stockpile are deliberately outside: they aren't part of the finished surface. A first version used the whole pad and wrongly reported the stockpile as +4 m "deviation". Upload a DXF with `3DFACE` entities to use a real design surface.
+
 ## Outputs
 Per-cell deviation map (min/mean/max), pass/fail per point and per cell, summary (count, mean, σ, max |dev|, % within individual tolerance, density check), and an overall verdict.
 

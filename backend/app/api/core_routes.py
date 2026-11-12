@@ -96,6 +96,22 @@ def get_dataset(dataset_id: str, user: User = Depends(current_user), db: Session
     return dataset_json(dataset_for(db, user, dataset_id))
 
 
+@router.delete("/datasets/{dataset_id}", status_code=204)
+def delete_dataset(dataset_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+    ds = dataset_for(db, user, dataset_id, "editor")
+    if db.query(Dataset).filter_by(parent_id=dataset_id).count():
+        raise HTTPException(409, "dataset has derived datasets; delete those first")
+    for model in (Job, Measurement):
+        db.query(model).filter_by(dataset_id=dataset_id).update({"dataset_id": None})
+    from app.db import Report
+
+    db.query(Report).filter_by(dataset_id=dataset_id).update({"dataset_id": None})
+    db.delete(ds)
+    db.commit()
+    request.app.state.storage.delete_dataset(dataset_id)
+    return Response(status_code=204)
+
+
 @router.get("/datasets/{dataset_id}/hierarchy")
 def get_hierarchy(dataset_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     ds = dataset_for(db, user, dataset_id)

@@ -85,6 +85,26 @@ export function LayerPanel() {
               {d.name}
               <span className="muted small"> · {d.status === "ready" ? `${(d.pointCount / 1e6).toFixed(2)} M pts` : d.status}</span>
             </span>
+            {d.parentId && s.project?.role !== "viewer" && (
+              <button
+                className="icon"
+                title="Delete this derived dataset"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await api.del(`/datasets/${d.id}`);
+                    const st = useStore.getState();
+                    const visible = { ...st.visible };
+                    delete visible[d.id];
+                    st.set({ datasets: await api.datasets(s.project!.id), visible });
+                  } catch (err) {
+                    useStore.getState().set({ error: String(err) });
+                  }
+                }}
+              >
+                ✕
+              </button>
+            )}
           </label>
         ))}
         <UploadButton />

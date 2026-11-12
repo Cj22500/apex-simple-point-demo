@@ -8,7 +8,7 @@ import { measure, polygonArea, polylineLength } from "../geo/measure";
 import { formatArea, formatGradePercent, formatLength } from "../geo/format";
 import { newId, useStore, type MeasurementItem } from "../store";
 import { setEngine } from "./engineRef";
-import { extraOverlay, handleAnalysisClick } from "./analysisTools";
+import { extraOverlay, handleAnalysisClick, useAnalysis } from "./analysisTools";
 
 export function measurementLabel(m: Pick<MeasurementItem, "kind" | "points">): string {
   const p = m.points;
@@ -36,7 +36,7 @@ export function Viewer() {
     const e = new PointCloudEngine(host.current!, (id, name) => api.node(id, name));
     engine.current = e;
     setEngine(e);
-    if (import.meta.env.DEV) (window as unknown as { __spl: unknown }).__spl = { engine: e, store: useStore };
+    if (import.meta.env.DEV) (window as unknown as { __spl: unknown }).__spl = { engine: e, store: useStore, analysis: useAnalysis };
     const off = e.onStats((stats) => useStore.getState().set({ stats }));
     return () => {
       off();

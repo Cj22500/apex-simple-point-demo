@@ -114,3 +114,21 @@ table.kv td:last-child { text-align: right; }
   .toolbar { flex-wrap: wrap; }
   .hint { display: none; }
 }
+
+/* profile drawer (2D CAD section view) */
+.profile-drawer { position: absolute; left: 0; right: 0; bottom: 0; height: 290px; background: rgba(11, 15, 20, 0.96); border-top: 1px solid var(--line); display: flex; flex-direction: column; color: #d8e1ea; }
+.profile-head { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.profile-body { position: relative; flex: 1; min-height: 0; }
+.profile-body canvas, .profile-body svg { position: absolute; inset: 0; }
+.profile-body svg { cursor: crosshair; }
+.profile-body .grid { stroke: #233140; stroke-width: 1; }
+.profile-body .tick { fill: #7d8fa1; font: 10px var(--mono); }
+.profile-body .ground { fill: none; stroke: #f72585; stroke-width: 2; }
+.profile-body .cursor { stroke: #ffd166; stroke-dasharray: 4 3; }
+.profile-body .readout { fill: #ffd166; font: 600 11px var(--mono); }
+.profile-body .mark { fill: #ffd166; }
+.profile-body .mline { stroke: #ffd166; stroke-width: 1.5; }
+.profile-measure { position: absolute; right: 10px; top: 8px; background: var(--panel-2); border: 1px solid var(--line); padding: 3px 8px; border-radius: 4px; }
+select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; width: 100%; }
+button.icon { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; }
+button.icon:hover { color: var(--danger); }
