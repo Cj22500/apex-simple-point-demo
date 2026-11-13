@@ -68,19 +68,6 @@ powershell -File scripts/verify.ps1
 
 This runs pytest (backend), vitest + tsc (frontend) and the CDK assertion tests, then regenerates `VERIFICATION_REPORT.md` with the measured errors.
 
-## 5-minute demo script (interview)
-
-1. **LOD:** the Toyosu site loads. Move the *point budget* slider and watch the HUD (points, nodes, FPS).
-2. **Colour:** RGB → Elevation → Intensity → Classification.
-3. **Measure the ramp:** Distance tool, two clicks on the ramp → **5.010 %** (truth 5 %, 3 mm noise). Explain the float64 RTC precision: `precision.test.ts` shows absolute float32 *failing* at Tokyo coordinates.
-4. **Section across the pit:** Section tool → 2D CAD profile (1:0.5 walls, floor, over-dig dip) → *Profile DXF*.
-5. **Volume:** Volume tool around the stockpile → grid vs TIN vs the analytic 351.858 m³. *Clean (SOR)*, then TIN again → +0.026 %.
-6. **Change:** Clean epoch B, then *Change detection* → the −45 mm settlement bowl and stockpile removal. Walls are greyed out as unsupported, not extrapolated.
-7. **As-built:** *As-built check* on the cleaned epoch → **FAIL**: 116 points beyond ±150 mm at the over-dig, located by the heatmap; slopes pass; density 600/600.
-8. **Photos:** click a frustum or thumbnail → photo view lines up with the cloud; pick a point → "photos seeing this point". Toggle the **3DGS** layer.
-9. **Interop:** Export SIMA (open in a text editor: CP932, X = north) and the DXF plan; open a LAZ **offline**.
-10. **Engineering:** `VERIFICATION_REPORT.md`, `docs/specs/asbuilt.md` (MLIT sources), `AI_AGENT_WORK_LOG.md` (what the agent got wrong and how tests caught it), `infra/` (cost controls asserted in tests).
-
 ## Repository
 
 ```
