@@ -56,6 +56,7 @@ export interface SectionClip {
 
 const BYTES_PER_POINT = 12 + 3 + 2 + 1 + 4;
 const MAX_CONCURRENT = 6;
+export const ERR_TOO_MANY_RESIDENT_NODES = "ERR_TOO_MANY_RESIDENT_NODES";
 
 export class PointCloudEngine {
   readonly renderer: THREE.WebGLRenderer;
@@ -201,7 +202,9 @@ export class PointCloudEngine {
     const slots: SlotRegistry = {
       alloc: (layer, node) => {
         const s = this.freeSlots.pop() ?? this.nextSlot++;
-        if (s >= 4096) throw new Error("too many resident nodes");
+        if (s >= 4096) {
+          throw Object.assign(new Error(`${ERR_TOO_MANY_RESIDENT_NODES}: too many resident nodes`), { code: ERR_TOO_MANY_RESIDENT_NODES });
+        }
         this.slotMap.set(s, { layer, node });
         return s;
       },

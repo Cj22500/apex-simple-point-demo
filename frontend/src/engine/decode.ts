@@ -5,6 +5,8 @@
  */
 import type { DecodedNode, Vec3 } from "./types";
 
+export const ERR_NODE_SIZE_MISMATCH = "ERR_NODE_SIZE_MISMATCH";
+
 export function nodeByteSize(count: number, extras: readonly string[]): number {
   return count * (22 + 4 * extras.length);
 }
@@ -12,7 +14,10 @@ export function nodeByteSize(count: number, extras: readonly string[]): number {
 export function decodeNode(buf: ArrayBuffer, count: number, extras: readonly string[]): DecodedNode {
   const expected = nodeByteSize(count, extras);
   if (buf.byteLength !== expected) {
-    throw new Error(`node size ${buf.byteLength} B, expected ${expected} B for ${count} points`);
+    throw Object.assign(
+      new Error(`${ERR_NODE_SIZE_MISMATCH}: node size ${buf.byteLength} B, expected ${expected} B for ${count} points`),
+      { code: ERR_NODE_SIZE_MISMATCH, params: { actual: buf.byteLength, expected, count } },
+    );
   }
   let off = 0;
   const position = new Float32Array(buf, off, 3 * count);

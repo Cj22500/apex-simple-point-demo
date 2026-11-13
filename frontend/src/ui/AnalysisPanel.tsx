@@ -2,29 +2,51 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { api, type Dataset } from "../api/client";
 import type { Vec3 } from "../engine/types";
-import { downloadCsv, formatArea, formatVolume } from "../geo/format";
+import { downloadCsv, formatArea, formatNumber, formatVolume } from "../geo/format";
 import { fitScale, groundAt, niceStep } from "../geo/profile";
+import { formatDatasetName, formatDesignSource, localizeError, t, type I18nKey, type Lang } from "../i18n";
 import { useStore } from "../store";
 import { activeDataset, applyClip, loadProfile, useAnalysis, waitForJob, type ControlPoint } from "./analysisTools";
 
 const mm = (m: number | null | undefined) => (m === null || m === undefined ? "–" : `${(m * 1000).toFixed(1)} mm`);
 
-async function runDerivedJob(task: string, path: string, body: unknown, hide: string[], after?: () => void) {
+type JobTask = "clean" | "asbuilt" | "change";
+
+function formatBusyLabel(task: string, lang: Lang): string {
+  if (task === "clean") return t(lang, "job.clean");
+  if (task === "asbuilt") return t(lang, "job.asbuilt");
+  if (task === "change") return t(lang, "job.change");
+  return task;
+}
+
+function formatBusyValue(val: string, lang: Lang): string {
+  const m = val.match(/^(queued|running|done|failed)(?::|\s+)(\d+)%?$/);
+  if (!m) return val;
+  const statusKey = `jobStatus.${m[1]!}` as I18nKey;
+  return `${t(lang, statusKey)} ${m[2]!}%`;
+}
+
+async function runDerivedJob(task: JobTask, path: string, body: unknown, hide: string[], after?: () => void) {
   try {
     const r = await api.post<{ datasetId: string; jobId: string }>(path, body);
     await waitForJob(r.jobId, task, { id: r.datasetId, hide });
     after?.();
   } catch (e) {
-    useStore.getState().set({ error: String(e) });
+    const lang = useStore.getState().lang;
+    useStore.getState().set({ error: localizeError(e, lang) });
   }
 }
 
 function safeDownload(path: string, filename: string, body?: unknown) {
-  void api.download(path, filename, body).catch((err) => useStore.getState().set({ error: String(err) }));
+  void api.download(path, filename, body).catch((err) => {
+    const lang = useStore.getState().lang;
+    useStore.getState().set({ error: localizeError(err, lang) });
+  });
 }
 
 // ------------------------------------------------------------------ right panel
 export function AnalysisPanel() {
+  const lang = useStore((s) => s.lang);
   const project = useStore((s) => s.project);
   const datasets = useStore((s) => s.datasets);
   const tool = useStore((s) => s.tool);
@@ -44,11 +66,11 @@ export function AnalysisPanel() {
       {(tool === "volume" || a.volumePolygon) && <VolumeControls />}
       {tool === "asbuilt" && <AsBuiltControls ds={ds} canWrite={canWrite} />}
       <section>
-        <h3>Processing {ds && <span className="muted">· {ds.name}</span>}</h3>
-        {!ds && <div className="muted small">Show a dataset to process it.</div>}
+        <h3>{t(lang, "proc.heading")} {ds && <span className="muted">· {formatDatasetName(ds, lang)}</span>}</h3>
+        {!ds && <div className="muted small">{t(lang, "proc.empty")}</div>}
         {ds && canWrite && <ProcessingControls ds={ds} datasets={datasets} />}
         {Object.entries(a.busy).map(([k, v]) => (
-          <div key={k} className="small warn">{k}: {v}</div>
+          <div key={k} className="small warn">{formatBusyLabel(k, lang)}: {formatBusyValue(v, lang)}</div>
         ))}
         <Reports ds={ds} />
       </section>
@@ -58,32 +80,42 @@ export function AnalysisPanel() {
 }
 
 function SectionControls() {
+  const lang = useStore((s) => s.lang);
   const { section, clip, profileLoading, set } = useAnalysis(useShallow((s) => ({ section: s.section, clip: s.clip, profileLoading: s.profileLoading, set: s.set })));
   const [hw, setHw] = useState(section?.halfWidth ?? 0.5);
   const ds = activeDataset();
+  const clipLabel = (m: "off" | "highlight" | "slab") =>
+    m === "off" ? t(lang, "section.clip.off") : m === "slab" ? t(lang, "section.clip.slab") : t(lang, "section.clip.highlight");
   return (
     <section>
-      <h3>Cross-section</h3>
-      {!section && <div className="muted small">Click the start and end of the section line in the 3D view.</div>}
+      <h3>{t(lang, "section.heading")}</h3>
+      {!section && <div className="muted small">{t(lang, "section.empty")}</div>}
       <div className="field">
-        <span>Half width (m)</span>
+        <span>{t(lang, "section.halfWidth")}</span>
         <input type="number" min={0.05} step={0.05} value={hw} onChange={(e) => setHw(Number(e.target.value))}
           onBlur={() => { if (section) { set({ section: { ...section, halfWidth: hw } }); applyClip(); void loadProfile(); } }} />
       </div>
       <div className="seg">
         {(["off", "highlight", "slab"] as const).map((m) => (
           <button key={m} className={clip === m ? "active" : ""} onClick={() => { set({ clip: m }); applyClip(); }}>
-            {m === "off" ? "No clip" : m === "slab" ? "Slab only" : "Highlight"}
+            {clipLabel(m)}
           </button>
         ))}
       </div>
       {section && ds && (
         <div className="row wrap" style={{ marginTop: 8 }}>
-          <button className="ghost small" disabled={profileLoading} onClick={() => loadProfile()}>{profileLoading ? "Loading…" : "Refresh"}</button>
-          <button className="ghost small" onClick={() => safeDownload(`/datasets/${ds.id}/profile.dxf`, "profile.dxf", { a: section.a.slice(0, 2), b: section.b.slice(0, 2), halfWidth: section.halfWidth, binSize: 0.1 })}>
-            Profile DXF
+          <button className="ghost small" disabled={profileLoading} onClick={() => loadProfile()}>
+            {profileLoading ? t(lang, "section.loading") : t(lang, "section.refresh")}
           </button>
-          <button className="ghost small danger" onClick={() => { set({ section: null, profile: null }); applyClip(); }}>Clear</button>
+          <button
+            className="ghost small"
+            onClick={() => safeDownload(`/datasets/${ds.id}/profile.dxf?lang=${lang}`, "profile.dxf", { a: section.a.slice(0, 2), b: section.b.slice(0, 2), halfWidth: section.halfWidth, binSize: 0.1 })}
+          >
+            {t(lang, "section.dxf")}
+          </button>
+          <button className="ghost small danger" onClick={() => { set({ section: null, profile: null }); applyClip(); }}>
+            {t(lang, "section.clear")}
+          </button>
         </div>
       )}
     </section>
@@ -91,6 +123,7 @@ function SectionControls() {
 }
 
 function VolumeControls() {
+  const lang = useStore((s) => s.lang);
   const { volumePolygon, set } = useAnalysis(useShallow((s) => ({ volumePolygon: s.volumePolygon, set: s.set })));
   const lowest = volumePolygon ? Math.min(...volumePolygon.map((p) => p[2])) : 0;
   const [ref, setRef] = useState<number | null>(null);
@@ -107,34 +140,46 @@ function VolumeControls() {
   const body = volumePolygon && { polygon: volumePolygon.map((p) => [p[0], p[1]]), reference, method, cellSize: cell };
   return (
     <section>
-      <h3>Cut / fill volume</h3>
-      {!volumePolygon && <div className="muted small">Click polygon vertices around the area, then press Enter or double-click.</div>}
+      <h3>{t(lang, "volume.heading")}</h3>
+      {!volumePolygon && <div className="muted small">{t(lang, "volume.empty")}</div>}
       {volumePolygon && (
         <>
-          <div className="field"><span>Reference H (m)</span><input type="number" step={0.001} value={reference} onChange={(e) => setRef(Number(e.target.value))} /></div>
-          <div className="field"><span>Method</span>
+          <div className="field"><span>{t(lang, "volume.refH")}</span><input type="number" step={0.001} value={reference} onChange={(e) => setRef(Number(e.target.value))} /></div>
+          <div className="field"><span>{t(lang, "volume.method")}</span>
             <div className="seg">
-              {(["grid", "tin"] as const).map((m) => <button key={m} className={method === m ? "active" : ""} onClick={() => setMethod(m)}>{m === "grid" ? "Grid DEM" : "TIN (exact)"}</button>)}
+              {(["grid", "tin"] as const).map((m) => (
+                <button key={m} className={method === m ? "active" : ""} onClick={() => setMethod(m)}>
+                  {m === "grid" ? t(lang, "volume.method.grid") : t(lang, "volume.method.tin")}
+                </button>
+              ))}
             </div>
           </div>
-          {method === "grid" && <div className="field"><span>Cell (m)</span><input type="number" min={0.05} step={0.05} value={cell} onChange={(e) => setCell(Number(e.target.value))} /></div>}
+          {method === "grid" && <div className="field"><span>{t(lang, "volume.cell")}</span><input type="number" min={0.05} step={0.05} value={cell} onChange={(e) => setCell(Number(e.target.value))} /></div>}
           <div className="row wrap">
             <button className="primary" disabled={!ds || busy} onClick={async () => {
               setBusy(true);
-              try { setRes(await api.post(`/datasets/${ds!.id}/volume`, body)); } catch (e) { useStore.getState().set({ error: String(e) }); }
+              try {
+                setRes(await api.post(`/datasets/${ds!.id}/volume`, body));
+              } catch (e) {
+                useStore.getState().set({ error: localizeError(e, useStore.getState().lang) });
+              }
               setBusy(false);
-            }}>{busy ? "Computing…" : "Compute"}</button>
-            <button className="ghost small" disabled={!ds} onClick={() => safeDownload(`/datasets/${ds!.id}/dem.tif`, "dem_epsg6677.tif", body)}>DEM GeoTIFF</button>
-            <button className="ghost small danger" onClick={() => { set({ volumePolygon: null }); setRes(null); }}>Clear</button>
+            }}>{busy ? t(lang, "volume.computing") : t(lang, "volume.compute")}</button>
+            <button className="ghost small" disabled={!ds} onClick={() => safeDownload(`/datasets/${ds!.id}/dem.tif`, "dem_epsg6677.tif", body)}>
+              {t(lang, "volume.dem")}
+            </button>
+            <button className="ghost small danger" onClick={() => { set({ volumePolygon: null }); setRes(null); }}>
+              {t(lang, "section.clear")}
+            </button>
           </div>
           {res && (
             <table className="kv mono" style={{ marginTop: 8 }}>
               <tbody>
-                <tr><td>Cut (above ref)</td><td>{formatVolume(res.cut_m3!)}</td></tr>
-                <tr><td>Fill (below ref)</td><td>{formatVolume(res.fill_m3!)}</td></tr>
-                <tr><td>Net</td><td>{formatVolume(res.net_m3!)}</td></tr>
-                <tr><td>Plan area</td><td>{formatArea(res.area_m2!)}</td></tr>
-                <tr><td>Points used</td><td>{res.points?.toLocaleString()}</td></tr>
+                <tr><td>{t(lang, "volume.cut")}</td><td>{formatVolume(res.cut_m3!)}</td></tr>
+                <tr><td>{t(lang, "volume.fill")}</td><td>{formatVolume(res.fill_m3!)}</td></tr>
+                <tr><td>{t(lang, "volume.net")}</td><td>{formatVolume(res.net_m3!)}</td></tr>
+                <tr><td>{t(lang, "volume.area")}</td><td>{formatArea(res.area_m2!)}</td></tr>
+                <tr><td>{t(lang, "volume.points")}</td><td>{res.points !== undefined ? formatNumber(res.points, lang) : ""}</td></tr>
               </tbody>
             </table>
           )}
@@ -146,28 +191,33 @@ function VolumeControls() {
 }
 
 function TruthHint() {
+  const lang = useStore((s) => s.lang);
   const ds = activeDataset();
   const truth = ds?.meta?.truth?.analytic;
   if (!truth) return null;
   return (
     <div className="small muted" style={{ marginTop: 6 }}>
-      Analytic truth (synthetic site): stockpile {truth.stockpile_volume_epochA_m3.toFixed(3)} m³ above 3.000 m (epoch A), pit {truth.pit_volume_epochA_m3.toFixed(3)} m³ below 3.000 m.
+      {t(lang, "volume.truth", {
+        stockpile: truth.stockpile_volume_epochA_m3.toFixed(3),
+        pit: truth.pit_volume_epochA_m3.toFixed(3),
+      })}
     </div>
   );
 }
 
 function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boolean }) {
+  const lang = useStore((s) => s.lang);
   const project = useStore((s) => s.project);
-  const [design, setDesign] = useState<{ source: string; vertices: number; triangles: number } | null>(null);
+  const [design, setDesign] = useState<{ source: string; sourceKey?: string; vertices: number; triangles: number } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const [uploadErr, setUploadErr] = useState<unknown>(null);
   const [uploading, setUploading] = useState(false);
 
   const loadDesign = async (projectId: string) => {
     setLoading(true);
     try {
-      const r = await api.get<{ source: string; vertices: unknown[]; triangles: unknown[] }>(`/projects/${projectId}/design`);
-      setDesign({ source: r.source, vertices: r.vertices.length, triangles: r.triangles.length });
+      const r = await api.get<{ source: string; sourceKey?: string; vertices: unknown[]; triangles: unknown[] }>(`/projects/${projectId}/design`);
+      setDesign({ source: r.source, sourceKey: r.sourceKey, vertices: r.vertices.length, triangles: r.triangles.length });
     } catch {
       setDesign(null);
     } finally {
@@ -181,17 +231,21 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!project) return null;
-  const isSeeded = design?.source.startsWith("synthetic design") ?? false;
+  const formattedDesign = design ? formatDesignSource(design.source, lang, design.sourceKey) : null;
 
   return (
     <section>
-      <h3>As-built (出来形 · MLIT 面管理)</h3>
+      <h3>{t(lang, "asbuilt.heading")}</h3>
       <div className="small muted">
         {loading
-          ? "Checking design surface…"
-          : design
-            ? `Design (${isSeeded ? "seeded demo" : "uploaded"}): ${design.source} · ${design.triangles} tris`
-            : "No design surface for this project. Upload a DXF with 3DFACE entities."}
+          ? t(lang, "asbuilt.checking")
+          : design && formattedDesign
+            ? t(lang, "asbuilt.designLoaded", {
+                kind: formattedDesign.isSeeded ? t(lang, "asbuilt.kind.seeded") : t(lang, "asbuilt.kind.uploaded"),
+                source: formattedDesign.label,
+                tris: formatNumber(design.triangles, lang),
+              })
+            : t(lang, "asbuilt.noDesign")}
       </div>
       <div className="row wrap" style={{ marginTop: 8 }}>
         {canWrite && (
@@ -199,10 +253,10 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
             className="primary"
             disabled={!ds || !design}
             onClick={() =>
-              ds && runDerivedJob("As-built", `/datasets/${ds.id}/asbuilt`, {}, [ds.id], () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))
+              ds && runDerivedJob("asbuilt", `/datasets/${ds.id}/asbuilt`, {}, [ds.id], () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))
             }
           >
-            Run as-built check
+            {t(lang, "asbuilt.run")}
           </button>
         )}
         {design && (
@@ -216,13 +270,13 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
               safeDownload(`/projects/${project.id}/design.dxf`, "design_tin.dxf");
             }}
           >
-            Download design TIN (DXF)
+            {t(lang, "asbuilt.download")}
           </a>
         )}
       </div>
       {canWrite && (
         <label className="upload">
-          {uploading ? "Uploading design DXF…" : "+ Upload Design TIN (.dxf 3DFACE)"}
+          {uploading ? t(lang, "asbuilt.uploading") : t(lang, "asbuilt.upload")}
           <input
             type="file"
             accept=".dxf"
@@ -234,9 +288,9 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
               setUploading(true);
               try {
                 const r = await api.uploadFile<{ vertices: number; triangles: number }>(`/projects/${project.id}/design`, f);
-                setDesign({ source: f.name, vertices: r.vertices, triangles: r.triangles });
+                setDesign({ source: f.name, sourceKey: "uploaded", vertices: r.vertices, triangles: r.triangles });
               } catch (err) {
-                setUploadErr(err instanceof Error ? err.message : String(err));
+                setUploadErr(err);
               } finally {
                 setUploading(false);
                 e.target.value = "";
@@ -245,15 +299,16 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
           />
         </label>
       )}
-      {uploadErr && <div className="small warn" style={{ marginTop: 4 }}>{uploadErr}</div>}
+      {uploadErr !== null && <div className="small warn" style={{ marginTop: 4 }}>{localizeError(uploadErr, lang)}</div>}
       <div className="small muted" style={{ marginTop: 6 }}>
-        MLIT tolerances: 平場 ±50 / ±150 mm · 法面 ±70 / ±160 mm · ≥1 pt/m² · ±5 cm crest/toe exclusion.
+        {t(lang, "asbuilt.tolerances")}
       </div>
     </section>
   );
 }
 
 function ProcessingControls({ ds, datasets }: { ds: Dataset; datasets: Dataset[] }) {
+  const lang = useStore((s) => s.lang);
   const epochs = datasets.filter((d) => d.status === "ready" && d.meta?.derivedBy !== "asbuilt" && d.meta?.derivedBy !== "change");
   const [refId, setRefId] = useState<string>("");
   const [cmpId, setCmpId] = useState<string>("");
@@ -266,47 +321,56 @@ function ProcessingControls({ ds, datasets }: { ds: Dataset; datasets: Dataset[]
     setRefId(bestA);
     setCmpId(bestB);
   }, [bestA, bestB]);
-  const run = (task: string, path: string, body: unknown, hide: string[], after?: () => void) =>
+  const run = (task: JobTask, path: string, body: unknown, hide: string[], after?: () => void) =>
     runDerivedJob(task, path, body, hide, after);
   return (
     <>
       <div className="row wrap">
-        <button className="ghost small" onClick={() => run("Cleaning", `/datasets/${ds.id}/clean`, { k: 16, nSigma: 1.0 }, [ds.id])} title="Statistical Outlier Removal (k = 16, nσ = 1)">
-          Clean (SOR)
+        <button className="ghost small" onClick={() => run("clean", `/datasets/${ds.id}/clean`, { k: 16, nSigma: 1.0 }, [ds.id])} title={t(lang, "proc.cleanTitle")}>
+          {t(lang, "proc.clean")}
         </button>
-        <button className="ghost small" onClick={() => run("As-built", `/datasets/${ds.id}/asbuilt`, {}, [ds.id], () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))}
-          title="Compare with the design surface using MLIT 出来形 tolerances">
-          As-built check
+        <button className="ghost small" onClick={() => run("asbuilt", `/datasets/${ds.id}/asbuilt`, {}, [ds.id], () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))}
+          title={t(lang, "proc.asbuiltTitle")}>
+          {t(lang, "proc.asbuilt")}
         </button>
       </div>
-      <div className="field"><span>Reference</span>
-        <select value={refId} onChange={(e) => setRefId(e.target.value)}>{epochs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+      <div className="field"><span>{t(lang, "proc.reference")}</span>
+        <select value={refId} onChange={(e) => setRefId(e.target.value)}>{epochs.map((d) => <option key={d.id} value={d.id}>{formatDatasetName(d, lang)}</option>)}</select>
       </div>
-      <div className="field"><span>Compared</span>
-        <select value={cmpId} onChange={(e) => setCmpId(e.target.value)}>{epochs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+      <div className="field"><span>{t(lang, "proc.compared")}</span>
+        <select value={cmpId} onChange={(e) => setCmpId(e.target.value)}>{epochs.map((d) => <option key={d.id} value={d.id}>{formatDatasetName(d, lang)}</option>)}</select>
       </div>
       <button className="ghost small" disabled={!refId || !cmpId || refId === cmpId}
-        onClick={() => run("Change detection", "/change", { datasetA: refId, datasetB: cmpId }, [ds.id, refId, cmpId], () => useStore.getState().set({ colorMode: "change", dzRange: 0.05 }))}>
-        Change detection (ΔZ)
+        onClick={() => run("change", "/change", { datasetA: refId, datasetB: cmpId }, [ds.id, refId, cmpId], () => useStore.getState().set({ colorMode: "change", dzRange: 0.05 }))}>
+        {t(lang, "proc.change")}
       </button>
     </>
   );
 }
 
 function Reports({ ds }: { ds: Dataset | null }) {
+  const lang = useStore((s) => s.lang);
   const rep = ds?.meta?.report;
   if (!rep) return null;
   if (rep.kind === "sor") {
-    return <div className="small" style={{ marginTop: 8 }}>SOR removed <b>{rep.removed.toLocaleString()}</b> points (threshold {rep.threshold_m.toFixed(3)} m), kept {rep.kept.toLocaleString()}.</div>;
+    return (
+      <div className="small" style={{ marginTop: 8 }}>
+        {t(lang, "report.sor", {
+          removed: formatNumber(rep.removed, lang),
+          threshold: rep.threshold_m.toFixed(3),
+          kept: formatNumber(rep.kept, lang),
+        })}
+      </div>
+    );
   }
   if (rep.kind === "change") {
     return (
       <table className="kv mono" style={{ marginTop: 8 }}>
         <tbody>
-          <tr><td>ΔZ min / max</td><td>{mm(rep.min_m)} / {mm(rep.max_m)}</td></tr>
-          <tr><td>ΔZ p1 / p99</td><td>{mm(rep.p01_m)} / {mm(rep.p99_m)}</td></tr>
-          <tr><td>RMS</td><td>{mm(rep.rms_m)}</td></tr>
-          <tr><td>Supported</td><td>{rep.supported.toLocaleString()} / {rep.points.toLocaleString()}</td></tr>
+          <tr><td>{t(lang, "report.dzMinMax")}</td><td>{mm(rep.min_m)} / {mm(rep.max_m)}</td></tr>
+          <tr><td>{t(lang, "report.dzPct")}</td><td>{mm(rep.p01_m)} / {mm(rep.p99_m)}</td></tr>
+          <tr><td>{t(lang, "report.rms")}</td><td>{mm(rep.rms_m)}</td></tr>
+          <tr><td>{t(lang, "report.supported")}</td><td>{formatNumber(rep.supported, lang)} / {formatNumber(rep.points, lang)}</td></tr>
         </tbody>
       </table>
     );
@@ -319,50 +383,77 @@ function Reports({ ds }: { ds: Dataset | null }) {
       return (
         <tr key={name}>
           <td>{name}</td>
-          <td>{r?.points?.toLocaleString() ?? 0}</td>
+          <td>{formatNumber(r?.points ?? 0, lang)}</td>
           <td className={meanCls}>{mm(r?.mean_m)}<br /><span className="muted">±{tol.mean * 1000}</span></td>
-          <td className={excCls}>{r?.exceeding_individual ?? 0}<br /><span className="muted">±{tol.individual * 1000}</span></td>
+          <td className={excCls}>{formatNumber(r?.exceeding_individual ?? 0, lang)}<br /><span className="muted">±{tol.individual * 1000}</span></td>
         </tr>
       );
     };
+    const verdict = rep.pass ? t(lang, "report.pass") : t(lang, "report.fail");
     return (
       <div className="asbuilt-report" style={{ marginTop: 8 }}>
-        <div className={`verdict ${rep.pass ? "pass" : "fail"}`}>{rep.pass ? "PASS" : "FAIL"} · 出来形 (MLIT 面管理)</div>
+        <div className={`verdict ${rep.pass ? "pass" : "fail"}`}>{t(lang, "report.verdict", { verdict })}</div>
         <table className="kv mono" style={{ marginTop: 6 }}>
-          <thead><tr className="muted small"><td>Surface</td><td>pts</td><td>mean</td><td>&gt; tol</td></tr></thead>
+          <thead>
+            <tr className="muted small">
+              <td>{t(lang, "report.col.surface")}</td>
+              <td>{t(lang, "report.col.pts")}</td>
+              <td>{t(lang, "report.col.mean")}</td>
+              <td>{t(lang, "report.col.tol")}</td>
+            </tr>
+          </thead>
           <tbody>
-            {row("平場 flat", rep.flat, rep.tolerances_m.flat)}
-            {row("法面 slope", rep.slope, rep.tolerances_m.slope)}
-            <tr><td>Density ≥1 pt/m²</td><td colSpan={3} className={rep.density.pass ? "ok" : "warn"}>{rep.density.cells - rep.density.cells_below_min}/{rep.density.cells} cells</td></tr>
-            <tr><td>Crest/toe ±5 cm</td><td colSpan={3}>{rep.excluded_near_breaklines.toLocaleString()} excluded</td></tr>
+            {row(t(lang, "report.flat"), rep.flat, rep.tolerances_m.flat)}
+            {row(t(lang, "report.slope"), rep.slope, rep.tolerances_m.slope)}
+            <tr>
+              <td>{t(lang, "report.density")}</td>
+              <td colSpan={3} className={rep.density.pass ? "ok" : "warn"}>
+                {t(lang, "report.cells", {
+                  ok: formatNumber(rep.density.cells - rep.density.cells_below_min, lang),
+                  total: formatNumber(rep.density.cells, lang),
+                })}
+              </td>
+            </tr>
+            <tr>
+              <td>{t(lang, "report.breakline")}</td>
+              <td colSpan={3}>{t(lang, "report.excluded", { count: formatNumber(rep.excluded_near_breaklines, lang) })}</td>
+            </tr>
           </tbody>
         </table>
-        <div className="small muted">Colour = deviation from design (±150 mm). Blue = below design (over-dig), red = above.</div>
+        <div className="small muted">{t(lang, "report.legendNote")}</div>
       </div>
     );
   }
   return null;
 }
 
+type SimaStatus =
+  | { kind: "ok"; name: string; points: number; parcels: number; encoding: string; warningsCount: number }
+  | { kind: "err"; err: unknown }
+  | null;
+
 function ExchangeControls() {
+  const lang = useStore((s) => s.lang);
   const project = useStore((s) => s.project);
   const ds = activeDataset();
   const { showControlPoints, set } = useAnalysis(useShallow((s) => ({ showControlPoints: s.showControlPoints, set: s.set })));
-  const [msg, setMsg] = useState<string | null>(null);
+  const [simaStatus, setSimaStatus] = useState<SimaStatus>(null);
   if (!project) return null;
   return (
     <section>
-      <h3>Exchange (SIMA / DXF / LAS)</h3>
-      <label className="row check"><input type="checkbox" checked={showControlPoints} onChange={(e) => set({ showControlPoints: e.target.checked })} /> Show 基準点 (control points)</label>
+      <h3>{t(lang, "exchange.heading")}</h3>
+      <label className="row check">
+        <input type="checkbox" checked={showControlPoints} onChange={(e) => set({ showControlPoints: e.target.checked })} /> {t(lang, "exchange.showCp")}
+      </label>
       <div className="row wrap">
-        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/export.sim`, "survey_points.sim")}>Export SIMA</button>
-        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/export.dxf`, "survey_plan.dxf")}>Export DXF plan</button>
-        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/design.dxf`, "design_tin.dxf")}>Design TIN DXF</button>
-        {ds && <button className="ghost small" onClick={() => safeDownload(`/datasets/${ds.id}/export.laz`, `${ds.name}.laz`)}>Download LAZ</button>}
+        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/export.sim?lang=${lang}`, "survey_points.sim")}>{t(lang, "exchange.exportSima")}</button>
+        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/export.dxf?lang=${lang}`, "survey_plan.dxf")}>{t(lang, "exchange.exportDxf")}</button>
+        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/design.dxf`, "design_tin.dxf")}>{t(lang, "exchange.designDxf")}</button>
+        {ds && <button className="ghost small" onClick={() => safeDownload(`/datasets/${ds.id}/export.laz`, `${ds.name}.laz`)}>{t(lang, "exchange.downloadLaz")}</button>}
       </div>
       {project.role !== "viewer" && (
         <label className="upload">
-          + Import SIMA (.sim, CP932)
+          {t(lang, "exchange.importSima")}
           <input type="file" accept=".sim,.txt" onChange={async (e) => {
             const f = e.target.files?.[0];
             if (!f) return;
@@ -371,24 +462,44 @@ function ExchangeControls() {
                 `/projects/${project.id}/import/sima`,
                 f,
               );
-              setMsg(`${r.siteName || f.name}: ${r.points} points, ${r.parcels} parcels (${r.encoding})${r.warnings?.length ? ` · ${r.warnings.length} warnings` : ""}`);
+              setSimaStatus({
+                kind: "ok",
+                name: r.siteName || f.name,
+                points: r.points,
+                parcels: r.parcels,
+                encoding: r.encoding,
+                warningsCount: r.warnings?.length ?? 0,
+              });
               const saved = await api.listMeasurements(project.id);
               useStore.getState().set({ measurements: saved.map((m) => ({ id: m.id, kind: m.kind, label: m.label, points: m.points, savedId: m.id })) });
             } catch (err) {
-              setMsg(err instanceof Error ? err.message : String(err));
+              setSimaStatus({ kind: "err", err });
             } finally {
               e.target.value = "";
             }
           }} />
         </label>
       )}
-      {msg && <div className="small muted">{msg}</div>}
+      {simaStatus && (
+        <div className="small muted">
+          {simaStatus.kind === "ok"
+            ? t(lang, "exchange.simaSummary", {
+                name: simaStatus.name,
+                points: formatNumber(simaStatus.points, lang),
+                parcels: formatNumber(simaStatus.parcels, lang),
+                encoding: simaStatus.encoding,
+                warnings: simaStatus.warningsCount ? t(lang, "exchange.simaWarnings", { count: formatNumber(simaStatus.warningsCount, lang) }) : "",
+              })
+            : localizeError(simaStatus.err, lang)}
+        </div>
+      )}
     </section>
   );
 }
 
 // ------------------------------------------------------------------ profile drawer (2D CAD view)
 export function ProfileDrawer() {
+  const lang = useStore((s) => s.lang);
   const { profile, section, set } = useAnalysis(useShallow((s) => ({ profile: s.profile, section: s.section, set: s.set })));
   const [ve, setVe] = useState(1);
   const [size, setSize] = useState({ w: 800, h: 240 });
@@ -420,8 +531,8 @@ export function ProfileDrawer() {
     g.clearRect(0, 0, size.w, size.h);
     const hw = section?.halfWidth ?? 1;
     for (const [s, d, z] of profile.points) {
-      const t = Math.min(1, Math.abs(d) / hw);
-      g.fillStyle = `rgba(${Math.round(76 + 120 * t)}, ${Math.round(201 - 80 * t)}, 240, 0.75)`;
+      const tVal = Math.min(1, Math.abs(d) / hw);
+      g.fillStyle = `rgba(${Math.round(76 + 120 * tVal)}, ${Math.round(201 - 80 * tVal)}, 240, 0.75)`;
       g.fillRect(scale.x(s) - 1, scale.y(z) - 1, 2, 2);
     }
   }, [profile, scale, size, section]);
@@ -446,13 +557,20 @@ export function ProfileDrawer() {
   return (
     <div className="profile-drawer">
       <div className="profile-head">
-        <b>SEC-1</b>
-        <span className="mono small">L = {profile.length.toFixed(3)} m · {profile.pointCount.toLocaleString()} pts · H {zMin.toFixed(2)}–{zMax.toFixed(2)} m</span>
+        <b>{t(lang, "profile.title")}</b>
+        <span className="mono small">
+          {t(lang, "profile.stats", {
+            length: profile.length.toFixed(3),
+            points: formatNumber(profile.pointCount, lang),
+            zMin: zMin.toFixed(2),
+            zMax: zMax.toFixed(2),
+          })}
+        </span>
         <span className="grow" />
-        <span className="small muted">VE</span>
+        <span className="small muted">{t(lang, "profile.ve")}</span>
         <div className="seg">{[1, 2, 5, 10].map((v) => <button key={v} className={v === ve ? "active" : ""} onClick={() => setVe(v)}>{v}×</button>)}</div>
         <button className="ghost small" onClick={() => {
-          const csv = ["station_m,elevation_m", ...profile.ground.map(([s, z]) => `${s.toFixed(4)},${z.toFixed(4)}`)].join("\n");
+          const csv = [t(lang, "profile.csvHeader"), ...profile.ground.map(([s, z]) => `${s.toFixed(4)},${z.toFixed(4)}`)].join("\n");
           downloadCsv("profile.csv", csv);
         }}>CSV</button>
         <button className="ghost small" onClick={() => useAnalysis.getState().set({ profile: null })}>✕</button>
@@ -485,15 +603,22 @@ export function ProfileDrawer() {
           {hover && (
             <g>
               <line x1={scale.x(hover.s)} x2={scale.x(hover.s)} y1={18} y2={size.h - 18} className="cursor" />
-              <text x={Math.min(scale.x(hover.s) + 6, size.w - 170)} y={30} className="readout">
-                STA {hover.s.toFixed(3)} · H {(groundAt(profile.ground, hover.s) ?? hover.z).toFixed(3)}
+              <text x={Math.max(32, Math.min(scale.x(hover.s) + 6, size.w - 200))} y={30} className="readout">
+                {t(lang, "profile.readout", {
+                  s: hover.s.toFixed(3),
+                  z: (groundAt(profile.ground, hover.s) ?? hover.z).toFixed(3),
+                })}
               </text>
             </g>
           )}
         </svg>
         {m && (
           <div className="profile-measure mono small">
-            ΔSTA {m.dS.toFixed(4)} m · ΔH {m.dZ.toFixed(4)} m · grade {m.dS !== 0 ? ((m.dZ / m.dS) * 100).toFixed(3) : "∞"} %
+            {t(lang, "profile.measure", {
+              dS: m.dS.toFixed(4),
+              dZ: m.dZ.toFixed(4),
+              grade: m.dS !== 0 ? ((m.dZ / m.dS) * 100).toFixed(3) : "∞",
+            })}
           </div>
         )}
       </div>

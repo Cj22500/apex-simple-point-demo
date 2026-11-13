@@ -42,19 +42,42 @@ def _num(v: float | None) -> str:
     return "" if v is None else f"{v:.4f}"
 
 
+_CP932_TRANSLIT = (
+    ("m²", "m2"),
+    ("m³", "m3"),
+    ("²", "2"),
+    ("³", "3"),
+    ("·", "/"),
+    ("–", "-"),
+    ("—", "-"),
+    ("≥", ">="),
+    ("≤", "<="),
+    ("⚠", "!"),
+    ("✕", "x"),
+)
+
+
+def _cp932_safe(text: str) -> str:
+    """Transliterate common non-CP932 survey symbols and replace unencodable characters."""
+    s = str(text or "")
+    for src, dst in _CP932_TRANSLIT:
+        s = s.replace(src, dst)
+    return s.encode("cp932", errors="replace").decode("cp932")
+
+
 def write_sima(f: SimaFile) -> bytes:
-    lines = [f"G00,{f.version},{f.site_name},", "Z00,座標データ,", "A00,"]
+    lines = [f"G00,{f.version},{_cp932_safe(f.site_name)},", "Z00,座標データ,", "A00,"]
     for p in f.points:
-        lines.append(f"A01,{p.number},{p.name},{_num(p.X)},{_num(p.Y)},{_num(p.H)},")
+        lines.append(f"A01,{p.number},{_cp932_safe(p.name)},{_num(p.X)},{_num(p.Y)},{_num(p.H)},")
     lines.append("A99,")
     if f.parcels:
         lines.append("Z00,区画データ,")
         for parcel in f.parcels:
-            lines.append(f"D00,{parcel.number},{parcel.name},{len(parcel.members)},")
+            lines.append(f"D00,{parcel.number},{_cp932_safe(parcel.name)},{len(parcel.members)},")
             for num, name in parcel.members:
-                lines.append(f"B01,{num},{name},")
+                lines.append(f"B01,{num},{_cp932_safe(name)},")
             lines.append("D99,")
-    return ("\r\n".join(lines) + "\r\n").encode("cp932")
+    return ("\r\n".join(lines) + "\r\n").encode("cp932", errors="replace")
 
 
 def _decode(data: bytes) -> tuple[str, str]:

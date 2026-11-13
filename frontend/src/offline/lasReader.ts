@@ -26,11 +26,15 @@ export interface LazPerfModule {
 }
 
 const RGB_OFFSET: Record<number, number> = { 2: 20, 3: 28, 5: 28, 7: 30, 8: 30, 10: 30 };
+export const ERR_NOT_LAS_FILE = "ERR_NOT_LAS_FILE";
+export const ERR_LAZ_WASM_REQUIRED = "ERR_LAZ_WASM_REQUIRED";
 
 export function readHeader(buf: ArrayBuffer): LasHeader {
   const v = new DataView(buf);
   const sig = String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3));
-  if (sig !== "LASF") throw new Error("not a LAS/LAZ file");
+  if (sig !== "LASF") {
+    throw Object.assign(new Error(`${ERR_NOT_LAS_FILE}: not a LAS/LAZ file`), { code: ERR_NOT_LAS_FILE });
+  }
   const versionMajor = v.getUint8(24);
   const versionMinor = v.getUint8(25);
   const rawFormat = v.getUint8(104);
@@ -79,7 +83,9 @@ export async function readLas(buf: ArrayBuffer, lazPerf?: () => Promise<LazPerfM
       if (i % tick === 0) onProgress?.(i / n);
     }
   } else {
-    if (!lazPerf) throw new Error("LAZ needs the laz-perf WASM module");
+    if (!lazPerf) {
+      throw Object.assign(new Error(`${ERR_LAZ_WASM_REQUIRED}: LAZ needs the laz-perf WASM module`), { code: ERR_LAZ_WASM_REQUIRED });
+    }
     const lp = await lazPerf();
     const bytes = new Uint8Array(buf);
     const filePtr = lp._malloc(bytes.length);

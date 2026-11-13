@@ -9,10 +9,16 @@ import hashlib
 import hmac
 import os
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.db import ROLES, Project, ProjectMember, User
+from app.errors import (
+    ERR_AUTH_INVALID_TOKEN,
+    ERR_PROJECT_NOT_FOUND,
+    ERR_ROLE_REQUIRED,
+    CodedHTTPException,
+)
 
 SECRET = os.environ.get("SPL_AUTH_SECRET", "dev-only-secret-change-me").encode()
 
@@ -42,7 +48,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user_id = verify_token(token) if token else None
     user = db.get(User, user_id) if user_id else None
     if user is None:
-        raise HTTPException(401, "invalid or missing token")
+        raise CodedHTTPException(401, ERR_AUTH_INVALID_TOKEN, "invalid or missing token")
     return user
 
 
@@ -51,8 +57,8 @@ def project_for(db: Session, user: User, project_id: str, min_role: str = "viewe
     Projects of other tenants are reported as 404 (don't reveal that they exist)."""
     project = db.get(Project, project_id)
     if project is None or project.tenant_id != user.tenant_id:
-        raise HTTPException(404, "project not found")
+        raise CodedHTTPException(404, ERR_PROJECT_NOT_FOUND, "project not found")
     member = db.query(ProjectMember).filter_by(project_id=project_id, user_id=user.id).one_or_none()
     if member is None or ROLES[member.role] < ROLES[min_role]:
-        raise HTTPException(403, f"requires {min_role} role")
+        raise CodedHTTPException(403, ERR_ROLE_REQUIRED, f"requires {min_role} role", {"role": min_role})
     return project

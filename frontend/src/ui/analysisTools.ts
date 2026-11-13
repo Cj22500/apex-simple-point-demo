@@ -2,9 +2,10 @@
  * Analysis tool state + click handling (section, volume polygon) and their overlays.
  */
 import { create } from "zustand";
-import { api, type Job } from "../api/client";
+import { ApiError, api, type Job } from "../api/client";
 import type { OverlayItem } from "../engine/Overlay";
 import type { Vec3 } from "../engine/types";
+import { formatControlPointName, localizeError } from "../i18n";
 import { useStore } from "../store";
 import { getEngine } from "./engineRef";
 import { usePhotos } from "./photoStore";
@@ -27,6 +28,8 @@ export interface Section {
 export interface ControlPoint {
   number: number;
   name: string;
+  nameEn?: string;
+  nameJa?: string;
   E: number;
   N: number;
   H: number;
@@ -88,7 +91,7 @@ export async function loadProfile() {
     set({ profile, profileLoading: false });
   } catch (err) {
     set({ profileLoading: false });
-    useStore.getState().set({ error: String(err) });
+    useStore.getState().set({ error: localizeError(err, useStore.getState().lang) });
   }
 }
 
@@ -113,10 +116,18 @@ export function handleAnalysisClick(p: Vec3 | null): void {
 }
 
 export function extraOverlay(): OverlayItem[] {
+  const lang = useStore.getState().lang;
   const { section, volumePolygon, controlPoints, showControlPoints, profileCursor } = useAnalysis.getState();
   const items: OverlayItem[] = [];
   if (section) {
-    items.push({ id: "section", kind: "section", points: [section.a, section.b], width: section.halfWidth, color: "#f72585", label: "SEC-1" });
+    items.push({
+      id: "section",
+      kind: "section",
+      points: [section.a, section.b],
+      width: section.halfWidth,
+      color: "#f72585",
+      label: lang === "ja" ? "断面1" : "SEC-1",
+    });
     if (profileCursor !== null) {
       const t = profileCursor / Math.hypot(section.b[0] - section.a[0], section.b[1] - section.a[1]);
       const p: Vec3 = [
@@ -127,7 +138,9 @@ export function extraOverlay(): OverlayItem[] {
       items.push({ id: "cursor", kind: "point", points: [p], color: "#f72585" });
     }
   }
-  if (volumePolygon) items.push({ id: "vol", kind: "polygon", points: volumePolygon, color: "#ffd166", label: "volume" });
+  if (volumePolygon) {
+    items.push({ id: "vol", kind: "polygon", points: volumePolygon, color: "#ffd166", label: lang === "ja" ? "土量" : "volume" });
+  }
   const ph = usePhotos.getState();
   if (ph.showFrustums) {
     for (const p of ph.photos) {
@@ -136,17 +149,31 @@ export function extraOverlay(): OverlayItem[] {
     }
   }
   if (showControlPoints) {
-    for (const c of controlPoints) items.push({ id: `cp${c.number}`, kind: "point", points: [[c.E, c.N, c.H]], color: "#ef476f", label: c.name });
+    for (const c of controlPoints) {
+      items.push({
+        id: `cp${c.number}`,
+        kind: "point",
+        points: [[c.E, c.N, c.H]],
+        color: "#ef476f",
+        label: formatControlPointName(c.number, c.nameJa ?? c.name, lang),
+      });
+    }
   }
   return items;
 }
+
+const TASK_LABEL: Record<string, { en: string; ja: string }> = {
+  clean: { en: "Clean (SOR)", ja: "ノイズ除去 (SOR)" },
+  asbuilt: { en: "As-built check", ja: "出来形検査" },
+  change: { en: "Change detection (ΔZ)", ja: "差分解析 (ΔZ)" },
+};
 
 /** Poll a job until done; refresh datasets; optionally show the new dataset instead of its parent. */
 export async function waitForJob(jobId: string, task: string, showDataset?: { id: string; hide?: string[] }): Promise<Job> {
   const a = useAnalysis.getState();
   for (;;) {
     const job = await api.job(jobId);
-    a.set({ busy: { ...useAnalysis.getState().busy, [task]: `${job.status} ${(job.progress * 100).toFixed(0)}%` } });
+    a.set({ busy: { ...useAnalysis.getState().busy, [task]: `${job.status}:${Math.round(job.progress * 100)}` } });
     if (job.status === "done" || job.status === "failed") {
       const busy = { ...useAnalysis.getState().busy };
       delete busy[task];
@@ -159,7 +186,18 @@ export async function waitForJob(jobId: string, task: string, showDataset?: { id
         for (const h of showDataset.hide ?? []) visible[h] = false;
       }
       st.set({ datasets, visible });
-      if (job.status === "failed") st.set({ error: `${task} failed: ${job.error}` });
+      if (job.status === "failed") {
+        const lang = st.lang;
+        const taskLabel = TASK_LABEL[task]?.[lang] ?? task;
+        const errCode = typeof job.result?.errorCode === "string" ? job.result.errorCode : undefined;
+        const errParams =
+          job.result?.errorParams && typeof job.result.errorParams === "object"
+            ? (job.result.errorParams as Record<string, unknown>)
+            : undefined;
+        const errObj = errCode ? new ApiError(500, job.error ?? errCode, errCode, errParams) : (job.error ?? "");
+        const detail = localizeError(errObj, lang);
+        st.set({ error: lang === "ja" ? `${taskLabel}に失敗しました: ${detail}` : `${taskLabel} failed: ${detail}` });
+      }
       return job;
     }
     await new Promise((r) => setTimeout(r, 800));

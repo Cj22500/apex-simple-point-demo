@@ -10,8 +10,8 @@
   --ok: #8ac926;
   --warn: #ff9f1c;
   --danger: #ef476f;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", ui-monospace, monospace;
+  --sans: "IBM Plex Sans", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -38,20 +38,22 @@ button, input, select { font: inherit; color: inherit; }
 .app {
   display: grid;
   height: 100%;
-  grid-template-columns: 260px 1fr 330px;
+  grid-template-columns: 276px 1fr 360px;
   grid-template-rows: auto 1fr auto;
   grid-template-areas: "top top top" "left stage right" "status status status";
 }
 
 /* toolbar */
-.toolbar { grid-area: top; display: flex; align-items: center; gap: 16px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.toolbar { grid-area: top; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
 .brand span { color: var(--accent); }
-.tools { display: flex; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
-.tools button, .seg button { background: none; border: 0; padding: 5px 10px; border-radius: 4px; cursor: pointer; color: var(--muted); }
-.tools button:hover, .seg button:hover { color: var(--text); }
-.tools button.active, .seg button.active { background: var(--accent); color: #04121a; font-weight: 600; }
-.hint { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tools { display: flex; flex-wrap: wrap; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px; min-width: 0; }
+.tools button, .seg button, .lang-toggle button { background: none; border: 0; padding: 5px 10px; border-radius: 4px; cursor: pointer; color: var(--muted); white-space: nowrap; }
+.tools button:hover, .seg button:hover, .lang-toggle button:hover { color: var(--text); }
+.tools button.active, .seg button.active, .lang-toggle button.active { background: var(--accent); color: #04121a; font-weight: 600; }
+.hint { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 160px; min-width: 0; }
+.lang-toggle { display: flex; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px; margin-left: auto; flex-shrink: 0; }
+.lang-toggle button { padding: 4px 8px; font-size: 12px; }
 
 /* panels */
 .panel { background: var(--panel); overflow: auto; }
@@ -79,7 +81,7 @@ button.primary { background: var(--accent); color: #04121a; border: 0; border-ra
 button:disabled { opacity: 0.5; cursor: default; }
 .upload { display: block; margin-top: 8px; color: var(--accent); cursor: pointer; font-size: 12px; }
 .upload input { display: none; }
-.field { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 6px; margin: 5px 0; }
+.field { display: grid; grid-template-columns: 128px 1fr; align-items: center; gap: 6px; margin: 5px 0; }
 
 /* stage */
 .stage { grid-area: stage; position: relative; overflow: hidden; }
@@ -117,7 +119,7 @@ table.kv td:last-child { text-align: right; }
 
 /* profile drawer (2D CAD section view) */
 .profile-drawer { position: absolute; left: 0; right: 0; bottom: 0; height: 290px; z-index: 6; background: rgba(11, 15, 20, 0.96); border-top: 1px solid var(--line); display: flex; flex-direction: column; color: #d8e1ea; }
-.profile-head { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.profile-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .profile-body { position: relative; flex: 1; min-height: 0; }
 .profile-body canvas, .profile-body svg { position: absolute; inset: 0; }
 .profile-body svg { cursor: crosshair; }
@@ -142,5 +144,5 @@ button.icon:hover { color: var(--danger); }
 .photo-frame { position: absolute; top: 0; height: 100%; left: 50%; transform: translateX(-50%); }
 .photo-frame img { width: 100%; height: 100%; display: block; }
 .photo-marker { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid #ffd166; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
-.photo-bar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 10px; background: rgba(11,15,20,0.85); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; pointer-events: auto; color: #d8e1ea; }
+.photo-bar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: rgba(11,15,20,0.85); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; pointer-events: auto; color: #d8e1ea; }
 .photo-bar input[type="range"] { flex: 1; max-width: 200px; accent-color: var(--accent-2); }

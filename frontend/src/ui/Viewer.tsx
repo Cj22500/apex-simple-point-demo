@@ -6,24 +6,25 @@ import type { OverlayItem } from "../engine/Overlay";
 import type { Vec3 } from "../engine/types";
 import { measure, polygonArea, polylineLength } from "../geo/measure";
 import { formatArea, formatGradePercent, formatLength } from "../geo/format";
+import { localizeError } from "../i18n";
 import { newId, useStore, type MeasurementItem } from "../store";
 import { setEngine } from "./engineRef";
 import { extraOverlay, handleAnalysisClick, useAnalysis } from "./analysisTools";
 
-export function measurementLabel(m: Pick<MeasurementItem, "kind" | "points">): string {
+export function measurementLabel(m: Pick<MeasurementItem, "kind" | "points">, lang: "en" | "ja" = "en"): string {
   const p = m.points;
   switch (m.kind) {
     case "distance": {
       if (p.length < 2) return "";
       const r = measure(p[0]!, p[1]!);
-      return `${formatLength(r.distance3d)} · ${formatGradePercent(r.slopePercent)}`;
+      return `${formatLength(r.distance3d)} · ${formatGradePercent(r.slopePercent, lang)}`;
     }
     case "polyline":
       return formatLength(polylineLength(p));
     case "area":
       return formatArea(polygonArea(p.map((q) => [q[0], q[1]] as const)));
     case "point":
-      return p[0] ? `H ${p[0][2].toFixed(4)}` : "";
+      return p[0] ? `${lang === "ja" ? "標高" : "H"} ${p[0][2].toFixed(4)}` : "";
   }
 }
 
@@ -80,7 +81,7 @@ export function Viewer() {
         }
         e.setLayerVisible(d.id, want);
       }
-    })().catch((err) => useStore.getState().set({ error: String(err) }));
+    })().catch((err) => useStore.getState().set({ error: localizeError(err, useStore.getState().lang) }));
     return () => {
       cancelled = true;
     };
@@ -92,16 +93,17 @@ export function Viewer() {
   const pending = useStore((s) => s.pending);
   const tool = useStore((s) => s.tool);
   const analysis = useStore((s) => s.analysisVersion);
+  const lang = useStore((s) => s.lang);
   useEffect(() => {
     const items: OverlayItem[] = measurements.map((m) => ({
       id: m.id,
       kind: m.kind,
       points: m.points,
-      label: m.label || measurementLabel(m),
+      label: m.label || measurementLabel(m, lang),
       selected: m.id === selectedId,
     }));
     engine.current?.setOverlay([...items, ...extraOverlay()], pending);
-  }, [measurements, selectedId, pending, tool, analysis]);
+  }, [measurements, selectedId, pending, tool, analysis, lang]);
 
   // pointer handling: click = tool action, move = cursor readout, dblclick = orbit target
   useEffect(() => {

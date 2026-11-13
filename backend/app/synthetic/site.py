@@ -168,13 +168,26 @@ def control_points() -> list[dict]:
     out = []
     for num, name, x, y in CONTROL_POINTS:
         z = float(ground_z(np.array([x]), np.array([y]))[0])
-        out.append({"number": num, "name": name, "E": SITE_E0 + x, "N": SITE_N0 + y, "H": round(z, 4), "local": [x, y]})
+        out.append(
+            {
+                "number": num,
+                "name": name,
+                "name_en": f"CP-{num}",
+                "name_ja": name,
+                "E": SITE_E0 + x,
+                "N": SITE_N0 + y,
+                "H": round(z, 4),
+                "local": [x, y],
+            }
+        )
     return out
 
 
 def site_truth() -> dict:
     return {
         "crs": "EPSG:6677 (JGD2011 / Japan Plane Rectangular CS IX) + JGD2011 vertical (JPGEO2024)",
+        "crs_code": "EPSG:6677+EPSG:6695",
+        "geoid_model": "JPGEO2024",
         "origin": {"E": SITE_E0, "N": SITE_N0},
         "extent_m": EXTENT,
         "pad": {"rect_local": PAD, "z": PAD_Z},

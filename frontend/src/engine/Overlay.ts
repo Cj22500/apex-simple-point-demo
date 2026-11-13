@@ -68,7 +68,9 @@ export class Overlay {
 
   private label(text: string, at: THREE.Vector3, cls = ""): CSS2DObject {
     const div = document.createElement("div");
-    div.className = `m-label ${cls}`;
+    div.className = cls ? `m-label ${cls}` : "m-label";
+    div.style.fontFamily = 'var(--mono), "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif';
+    div.style.lineHeight = "1.35";
     div.textContent = text;
     const o = new CSS2DObject(div);
     o.position.copy(at);

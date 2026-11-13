@@ -1,7 +1,9 @@
 """SIMA and DXF import/export for project survey points and measurements."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from typing import Literal
+
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from app.auth import current_user, get_db, project_for
 from app.core import dxf, sima
 from app.core.measure import measure
 from app.db import Dataset, Measurement, Project, User
+from app.errors import ERR_SIMA_NO_RECORDS, CodedHTTPException
 
 router = APIRouter(prefix="/api")
 
@@ -19,7 +22,18 @@ def _control_points(db: Session, project: Project) -> list[dict]:
     for ds in db.query(Dataset).filter_by(project_id=project.id).all():
         cps = (ds.meta or {}).get("truth", {}).get("control_points")
         if cps:
-            return [{"number": c["number"], "name": c["name"], "E": c["E"], "N": c["N"], "H": c["H"]} for c in cps]
+            return [
+                {
+                    "number": c["number"],
+                    "name": c["name"],
+                    "nameEn": c.get("name_en") or f"CP-{c['number']}",
+                    "nameJa": c.get("name_ja") or c["name"],
+                    "E": c["E"],
+                    "N": c["N"],
+                    "H": c["H"],
+                }
+                for c in cps
+            ]
     return []
 
 
@@ -29,22 +43,43 @@ def control_points(project_id: str, user: User = Depends(current_user), db: Sess
 
 
 @router.get("/projects/{project_id}/export.sim")
-def export_sima(project_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+def export_sima(
+    project_id: str,
+    lang: Literal["en", "ja"] | None = Query(None),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     project = project_for(db, user, project_id)
     f = sima.SimaFile(site_name=project.name)
     for c in _control_points(db, project):
-        f.points.append(sima.SimaPoint(c["number"], c["name"], X=c["N"], Y=c["E"], H=c["H"]))
+        cp_name = c["nameEn"] if lang == "en" else (c["nameJa"] if lang == "ja" else c["name"])
+        f.points.append(sima.SimaPoint(c["number"], cp_name, X=c["N"], Y=c["E"], H=c["H"]))
     next_no = max([p.number for p in f.points], default=0) + 1
     rows = db.query(Measurement).filter_by(project_id=project_id, tenant_id=user.tenant_id).order_by(Measurement.created_at).all()
     for m in rows:
         refs = []
         for i, (E, N, H) in enumerate(m.points):
-            name = m.label if (m.kind == "point" and m.label) else f"{m.kind[:2].upper()}{next_no}"
+            if m.kind == "point" and m.label:
+                name = m.label
+            elif lang == "en":
+                name = f"PT{next_no}"
+            elif lang == "ja":
+                name = f"測点{next_no}"
+            else:
+                name = f"{m.kind[:2].upper()}{next_no}"
             f.points.append(sima.SimaPoint(next_no, name, X=N, Y=E, H=H))
             refs.append((next_no, name))
             next_no += 1
         if m.kind in ("area", "polyline", "distance"):
-            f.parcels.append(sima.SimaParcel(len(f.parcels) + 1, m.label or f"{m.kind} {len(f.parcels) + 1}", refs))
+            if m.label:
+                parcel_name = m.label
+            elif lang == "en":
+                parcel_name = f"Area {len(f.parcels) + 1}"
+            elif lang == "ja":
+                parcel_name = f"区画{len(f.parcels) + 1}"
+            else:
+                parcel_name = f"{m.kind} {len(f.parcels) + 1}"
+            f.parcels.append(sima.SimaParcel(len(f.parcels) + 1, parcel_name, refs))
     return Response(sima.write_sima(f), media_type="application/octet-stream",
                     headers={"Content-Disposition": 'attachment; filename="survey_points.sim"'})
 
@@ -54,7 +89,12 @@ async def import_sima(project_id: str, file: UploadFile = File(...), user: User 
     project_for(db, user, project_id, "editor")
     f = sima.read_sima(await file.read())
     if not f.points:
-        raise HTTPException(400, f"no A01 coordinate records found; warnings: {f.warnings[:5]}")
+        raise CodedHTTPException(
+            400,
+            ERR_SIMA_NO_RECORDS,
+            f"no A01 coordinate records found; warnings: {f.warnings[:5]}",
+            {"warnings": f.warnings[:5]},
+        )
     by_no = {p.number: p for p in f.points}
     created = 0
     for p in f.points:
@@ -74,17 +114,32 @@ async def import_sima(project_id: str, file: UploadFile = File(...), user: User 
 
 
 @router.get("/projects/{project_id}/export.dxf")
-def export_dxf(project_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+def export_dxf(
+    project_id: str,
+    lang: Literal["en", "ja"] = Query("en"),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     project = project_for(db, user, project_id)
-    points = [{"name": c["name"], "E": c["E"], "N": c["N"], "H": c["H"]} for c in _control_points(db, project)]
+    points = [
+        {
+            "name": c["nameJa"] if lang == "ja" else c["nameEn"],
+            "E": c["E"],
+            "N": c["N"],
+            "H": c["H"],
+        }
+        for c in _control_points(db, project)
+    ]
     lines, polylines, boundaries = [], [], []
+    fallback_point = "測点" if lang == "ja" else "P"
+    vertical_label = "鉛直" if lang == "ja" else "vertical"
     for m in db.query(Measurement).filter_by(project_id=project_id, tenant_id=user.tenant_id).all():
         if m.kind == "point":
             E, N, H = m.points[0]
-            points.append({"name": m.label or "P", "E": E, "N": N, "H": H})
+            points.append({"name": m.label or fallback_point, "E": E, "N": N, "H": H})
         elif m.kind == "distance":
             r = measure(m.points[0], m.points[1])
-            grade = "vertical" if r.slopePercent is None else f"{r.slopePercent:.3f}%"
+            grade = vertical_label if r.slopePercent is None else f"{r.slopePercent:.3f}%"
             lines.append({"a": m.points[0], "b": m.points[1], "label": f"{r.distance3d:.4f} m / {grade}"})
         elif m.kind == "polyline":
             polylines.append({"label": m.label, "points": m.points})

@@ -5,7 +5,7 @@ import io
 import uuid
 
 import numpy as np
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -14,6 +14,14 @@ from app.api.core_routes import dataset_for
 from app.auth import current_user, get_db, project_for
 from app.core import photos, splat
 from app.db import Photo, User
+from app.errors import (
+    ERR_DATASET_NOT_READY,
+    ERR_INVALID_VALUE,
+    ERR_PHOTO_NO_GPS,
+    ERR_PHOTO_NOT_FOUND,
+    ERR_POINT_CLOUD_TOO_SMALL,
+    CodedHTTPException,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -35,7 +43,7 @@ def list_photos(project_id: str, user: User = Depends(current_user), db: Session
 def get_photo(photo_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> FileResponse:
     p = db.get(Photo, photo_id)
     if p is None or p.tenant_id != user.tenant_id:
-        raise HTTPException(404, "photo not found")
+        raise CodedHTTPException(404, ERR_PHOTO_NOT_FOUND, "photo not found")
     project_for(db, user, p.project_id)
     return FileResponse(request.app.state.storage.photo_path(p.id), media_type="image/jpeg",
                         headers={"Cache-Control": "private, max-age=86400"})
@@ -48,7 +56,12 @@ async def upload_photo(project_id: str, request: Request, file: UploadFile = Fil
     try:
         pose = photos.read_pose(data)
     except Exception as exc:  # noqa: BLE001  (bad EXIF is a client error)
-        raise HTTPException(400, f"cannot read photo position: {exc}") from exc
+        raise CodedHTTPException(
+            400,
+            ERR_PHOTO_NO_GPS,
+            f"cannot read photo position: {exc}",
+            {"reason": str(exc), "detail": str(exc)},
+        ) from exc
     photo_id = uuid.uuid4().hex
     path = request.app.state.storage.photo_path(photo_id)
     path.write_bytes(data)
@@ -88,13 +101,14 @@ def splat_ply(dataset_id: str, request: Request, ox: float, oy: float, oz: float
     """Point cloud -> 3D Gaussian Splatting PLY (INRIA layout), positions relative to (ox, oy, oz)."""
     ds = dataset_for(db, user, dataset_id)
     if ds.status != "ready":
-        raise HTTPException(409, f"dataset is {ds.status}")
+        raise CodedHTTPException(409, ERR_DATASET_NOT_READY, f"dataset is {ds.status}", {"status": ds.status})
     ps = request.app.state.storage.load_arrays(ds.id)
     try:
         data = splat.pointcloud_to_splat_ply(np.asarray(ps.xyz), None if ps.rgb is None else np.asarray(ps.rgb),
                                              origin=(ox, oy, oz), max_points=maxPoints)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        code = ERR_POINT_CLOUD_TOO_SMALL if "empty" in str(exc).lower() else ERR_INVALID_VALUE
+        raise CodedHTTPException(422, code, str(exc), {"reason": str(exc), "detail": str(exc)}) from exc
     return Response(data, media_type="application/octet-stream", headers={"Content-Disposition": 'attachment; filename="splat.ply"'})
 
 

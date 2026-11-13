@@ -26,6 +26,12 @@ def _new_doc():
     doc = ezdxf.new("R2018", setup=True)
     doc.units = units.M
     doc.header["$INSUNITS"] = 6
+    if "Standard" in doc.styles:
+        std = doc.styles.get("Standard")
+        std.dxf.font = "txt.shx"
+        std.dxf.bigfont = "extfont2.shx"
+    if "CJK" not in doc.styles:
+        doc.styles.add("CJK", font="msgothic.ttc")
     for name, color in LAYERS.items():
         if name not in doc.layers:
             doc.layers.add(name, color=color)
@@ -54,11 +60,19 @@ def plan_dxf(points: list[dict] | None = None, lines: list[dict] | None = None, 
         if ln.get("label"):
             msp.add_text(ln["label"], height=text_height, dxfattribs={"layer": "MEASUREMENTS"}).set_placement(mid)
     for pl in polylines or []:
-        msp.add_polyline3d([tuple(p) for p in pl["points"]], dxfattribs={"layer": "MEASUREMENTS"})
+        pts = [tuple(p) for p in pl["points"]]
+        msp.add_polyline3d(pts, dxfattribs={"layer": "MEASUREMENTS"})
+        if pl.get("label") and pts:
+            mid = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+            msp.add_text(pl["label"], height=text_height, dxfattribs={"layer": "MEASUREMENTS"}).set_placement(mid)
     for s in sections or []:
         msp.add_line((s["a"][0], s["a"][1], 0), (s["b"][0], s["b"][1], 0), dxfattribs={"layer": "SECTION_PLAN"})
     for bd in boundaries or []:
-        msp.add_lwpolyline([(p[0], p[1]) for p in bd["points"]], close=True, dxfattribs={"layer": "VOLUME_BOUNDARY"})
+        pts = [(p[0], p[1]) for p in bd["points"]]
+        msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": "VOLUME_BOUNDARY"})
+        if bd.get("label") and pts:
+            mid = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+            msp.add_text(bd["label"], height=text_height, dxfattribs={"layer": "VOLUME_BOUNDARY"}).set_placement(mid)
     return _bytes(doc)
 
 

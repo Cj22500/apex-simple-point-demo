@@ -2,7 +2,12 @@
 import type { Hierarchy, Vec3 } from "../engine/types";
 
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: string,
+    readonly params?: Record<string, unknown>,
+  ) {
     super(message);
   }
 }
@@ -16,13 +21,19 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, { ...init, headers });
   if (!res.ok) {
     let detail = res.statusText;
+    let code: string | undefined;
+    let params: Record<string, unknown> | undefined;
     try {
       const j = await res.json();
       detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+      if (typeof j.code === "string") code = j.code;
+      if (j.params && typeof j.params === "object" && !Array.isArray(j.params)) {
+        params = j.params as Record<string, unknown>;
+      }
     } catch {
       /* not JSON */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, code, params);
   }
   const type = res.headers.get("content-type") ?? "";
   if (type.includes("application/json")) return (await res.json()) as T;

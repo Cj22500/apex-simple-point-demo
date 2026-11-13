@@ -14,9 +14,11 @@ from urllib.parse import quote_plus
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from app import config
 from app.db import Base, make_session_factory
+from app.errors import CodedHTTPException
 from app.services import JobRunner, seed_demo
 from app.storage import LocalStorage
 
@@ -62,6 +64,15 @@ def create_app(data_dir: Path | None = None, database_url: str | None = None, se
 
     app = FastAPI(title="Simple-Point Lite API", version="0.1.0",
                   description="Point cloud ingestion, survey measurement and analysis, JGD2011/JPGEO2024, DXF/SIMA.")
+
+    @app.exception_handler(CodedHTTPException)
+    async def _coded_http_exception_handler(_request, exc: CodedHTTPException) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, "code": exc.code, "params": exc.params or {}},
+            headers=exc.headers,
+        )
+
     app.state.engine = engine
     app.state.sessions = sessions
     app.state.storage = LocalStorage(data_dir)

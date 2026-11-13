@@ -86,3 +86,65 @@ def test_dxf_profile_and_design_tin(metric):
     v2, t2 = dxf.read_design_tin(dxf.design_tin_dxf(verts, tris))
     assert len(t2) == len(tris) and len(v2) == len(verts)
     assert np.allclose(np.sort(v2, axis=0), np.sort(verts, axis=0), atol=1e-6)
+
+
+def test_sima_write_cp932_and_transliterates_survey_symbols():
+    f = sima.SimaFile(
+        site_name="豊洲現場 ΔZ ±50mm — 面積m²/土量m³ · ≥1点 ≤100m ⚠🚧",
+        points=[
+            sima.SimaPoint(1, "基準点1カタカナΔ±", X=-38955.0, Y=-4170.0, H=3.5),
+            sima.SimaPoint(2, "面積m²·土量m³—≥1≤2⚠", X=-38950.0, Y=-4165.0, H=4.0),
+        ],
+        parcels=[
+            sima.SimaParcel(1, "掘削範囲—m³≥0⚠", [(1, "基準点1カタカナΔ±"), (2, "面積m²·土量m³—≥1≤2⚠")]),
+        ],
+    )
+    data = sima.write_sima(f)
+    text = data.decode("cp932")
+    assert "Z00,座標データ," in text
+    assert "Z00,区画データ," in text
+    assert "基準点1カタカナΔ±" in text
+    assert "面積m2/土量m3->=1<=2!" in text
+    assert "m2" in text and "m3" in text and ">=" in text and "<=" in text
+    assert "豊洲現場 ΔZ ±50mm - 面積m2/土量m3 / >=1点 <=100m !?" in text
+    back = sima.read_sima(data)
+    assert back.encoding == "cp932"
+    assert back.points[0].name == "基準点1カタカナΔ±"
+    assert back.points[1].name == "面積m2/土量m3->=1<=2!"
+
+
+def test_dxf_japanese_labels_cjk_style_and_text_entities():
+    plan_bytes = dxf.plan_dxf(
+        points=[{"name": "基準点1", "E": -4170.0, "N": -38955.0, "H": 3.5}],
+        lines=[{"label": "30.0324 m / 5.010%", "a": [-4170.0, -38955.0, 3.5], "b": [-4140.0, -38955.0, 5.0]}],
+        polylines=[
+            {"label": "法線測線1", "points": [[-4170.0, -38955.0, 3.5], [-4150.0, -38950.0, 4.0]]},
+            {"label": "", "points": [[-4160.0, -38945.0, 3.5], [-4145.0, -38940.0, 4.0]]},
+        ],
+        boundaries=[
+            {"label": "土量計測範囲", "points": [[-4220.0, -38945.0], [-4210.0, -38945.0], [-4210.0, -38935.0]]},
+            {"label": "", "points": [[-4200.0, -38945.0], [-4190.0, -38945.0], [-4190.0, -38935.0]]},
+        ],
+    )
+    doc = ezdxf.read(io.StringIO(plan_bytes.decode("utf-8")))
+    assert not doc.audit().has_errors
+    assert "CJK" in doc.styles
+    assert doc.styles.get("CJK").dxf.font == "msgothic.ttc"
+    assert doc.styles.get("Standard").dxf.bigfont == "extfont2.shx"
+
+    msp = doc.modelspace()
+    survey_texts = [e.dxf.text for e in msp.query("TEXT[layer=='SURVEY_POINTS']")]
+    meas_texts = [e.dxf.text for e in msp.query("TEXT[layer=='MEASUREMENTS']")]
+    boundary_texts = [e.dxf.text for e in msp.query("TEXT[layer=='VOLUME_BOUNDARY']")]
+    assert survey_texts == ["基準点1"]
+    assert meas_texts == ["30.0324 m / 5.010%", "法線測線1"]
+    assert boundary_texts == ["土量計測範囲"]
+
+    s = np.linspace(0, 20, 21)
+    z = 3.0 + 0.05 * s
+    prof_bytes = dxf.profile_dxf(s, z, title="縦断図 断面1 (20.00 m)")
+    prof_doc = ezdxf.read(io.StringIO(prof_bytes.decode("utf-8")))
+    assert not prof_doc.audit().has_errors
+    assert "CJK" in prof_doc.styles
+    prof_texts = [e.dxf.text for e in prof_doc.modelspace().query("TEXT[layer=='PROFILE']")]
+    assert prof_texts == ["縦断図 断面1 (20.00 m)"]

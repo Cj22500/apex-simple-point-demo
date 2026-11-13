@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -16,6 +16,19 @@ from app.auth import current_user, get_db, issue_token, project_for
 from app.core import crs, pcio
 from app.core.measure import measure, polygon_area, polyline_length
 from app.db import Dataset, Job, Measurement, Project, ProjectMember, User
+from app.errors import (
+    ERR_AUTH_INVALID_TOKEN,
+    ERR_CANNOT_DELETE_BASE_DATASET,
+    ERR_CRS_OUTSIDE_GEOID,
+    ERR_DATASET_NOT_FOUND,
+    ERR_DATASET_NOT_READY,
+    ERR_HIERARCHY_NOT_FOUND,
+    ERR_INVALID_VALUE,
+    ERR_JOB_NOT_FOUND,
+    ERR_NODE_NOT_FOUND,
+    ERR_UNSUPPORTED_FORMAT,
+    CodedHTTPException,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -24,7 +37,7 @@ router = APIRouter(prefix="/api")
 def dataset_for(db: Session, user: User, dataset_id: str, min_role: str = "viewer") -> Dataset:
     ds = db.get(Dataset, dataset_id)
     if ds is None or ds.tenant_id != user.tenant_id:
-        raise HTTPException(404, "dataset not found")
+        raise CodedHTTPException(404, ERR_DATASET_NOT_FOUND, "dataset not found")
     project_for(db, user, ds.project_id, min_role)
     return ds
 
@@ -45,10 +58,10 @@ def health() -> dict:
 def dev_token(request: Request, email: str = "demo@example.com", db: Session = Depends(get_db)) -> dict:
     """Local demo login. Disabled when SPL_DEV_AUTH=0 (production uses Cognito)."""
     if os.environ.get("SPL_DEV_AUTH", "1") != "1":
-        raise HTTPException(404)
+        raise CodedHTTPException(404, ERR_AUTH_INVALID_TOKEN, "Not Found")
     user = db.query(User).filter_by(email=email).one_or_none()
     if user is None:
-        raise HTTPException(404, "unknown demo user")
+        raise CodedHTTPException(404, ERR_AUTH_INVALID_TOKEN, "unknown demo user", {"email": email})
     return {"token": issue_token(user.id), "user": {"id": user.id, "name": user.name, "email": user.email}}
 
 
@@ -78,7 +91,12 @@ async def upload_dataset(project_id: str, request: Request, file: UploadFile = F
     project_for(db, user, project_id, "editor")
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in pcio.SUPPORTED:
-        raise HTTPException(400, f"unsupported file type {suffix!r}; supported: {', '.join(pcio.SUPPORTED)}")
+        raise CodedHTTPException(
+            400,
+            ERR_UNSUPPORTED_FORMAT,
+            f"unsupported file type {suffix!r}; supported: {', '.join(pcio.SUPPORTED)}",
+            {"suffix": suffix, "supported": ", ".join(pcio.SUPPORTED)},
+        )
     fd, tmp = tempfile.mkstemp(suffix=suffix)  # never use the client's file name as a path
     with os.fdopen(fd, "wb") as f:
         while chunk := await file.read(8 * 1024 * 1024):
@@ -87,7 +105,7 @@ async def upload_dataset(project_id: str, request: Request, file: UploadFile = F
         ds_id, job_id = services.ingest_file(request.app.state, user.tenant_id, project_id, name or file.filename or "upload", Path(tmp), epoch)
     except pcio.UnsupportedFormat as exc:
         Path(tmp).unlink(missing_ok=True)
-        raise HTTPException(400, str(exc)) from exc
+        raise CodedHTTPException(400, ERR_UNSUPPORTED_FORMAT, str(exc), {"reason": str(exc), "detail": str(exc)}) from exc
     return {"datasetId": ds_id, "jobId": job_id}
 
 
@@ -100,7 +118,7 @@ def get_dataset(dataset_id: str, user: User = Depends(current_user), db: Session
 def delete_dataset(dataset_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     ds = dataset_for(db, user, dataset_id, "editor")
     if db.query(Dataset).filter_by(parent_id=dataset_id).count():
-        raise HTTPException(409, "dataset has derived datasets; delete those first")
+        raise CodedHTTPException(409, ERR_CANNOT_DELETE_BASE_DATASET, "dataset has derived datasets; delete those first")
     for model in (Job, Measurement):
         db.query(model).filter_by(dataset_id=dataset_id).update({"dataset_id": None})
     from app.db import Report
@@ -116,10 +134,10 @@ def delete_dataset(dataset_id: str, request: Request, user: User = Depends(curre
 def get_hierarchy(dataset_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     ds = dataset_for(db, user, dataset_id)
     if ds.status != "ready":
-        raise HTTPException(409, f"dataset is {ds.status}")
+        raise CodedHTTPException(409, ERR_DATASET_NOT_READY, f"dataset is {ds.status}", {"status": ds.status})
     path = request.app.state.storage.octree_dir(dataset_id) / "hierarchy.json"
     if not path.exists():
-        raise HTTPException(404, "hierarchy not found")
+        raise CodedHTTPException(404, ERR_HIERARCHY_NOT_FOUND, "hierarchy not found")
     return FileResponse(path, media_type="application/json")
 
 
@@ -129,9 +147,9 @@ def get_node(dataset_id: str, node: str, request: Request, user: User = Depends(
     try:
         path = request.app.state.storage.node_path(dataset_id, node)
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise CodedHTTPException(400, ERR_INVALID_VALUE, str(exc), {"reason": str(exc), "detail": str(exc)}) from exc
     if not path.exists():
-        raise HTTPException(404, "node not found")
+        raise CodedHTTPException(404, ERR_NODE_NOT_FOUND, "node not found", {"node": node})
     # Tiles are immutable per dataset version: cache forever (CloudFront in AWS).
     return FileResponse(path, media_type="application/octet-stream",
                         headers={"Cache-Control": "private, max-age=31536000, immutable"})
@@ -141,7 +159,7 @@ def get_node(dataset_id: str, node: str, request: Request, user: User = Depends(
 def get_job(job_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     job = db.get(Job, job_id)
     if job is None or job.tenant_id != user.tenant_id:
-        raise HTTPException(404, "job not found")
+        raise CodedHTTPException(404, ERR_JOB_NOT_FOUND, "job not found")
     return {"id": job.id, "kind": job.kind, "status": job.status, "progress": job.progress, "error": job.error,
             "result": job.result, "datasetId": job.dataset_id}
 
@@ -154,10 +172,10 @@ class MeasureRequest(BaseModel):
 
 def compute_measurement(kind: str, pts: list[list[float]]) -> dict:
     if any(len(p) != 3 for p in pts):
-        raise HTTPException(422, "each point must be [E, N, H]")
+        raise CodedHTTPException(422, ERR_INVALID_VALUE, "each point must be [E, N, H]")
     if kind == "distance":
         if len(pts) != 2:
-            raise HTTPException(422, "distance needs exactly 2 points")
+            raise CodedHTTPException(422, ERR_INVALID_VALUE, "distance needs exactly 2 points")
         return measure(pts[0], pts[1]).to_dict()
     if kind == "polyline":
         return {"length3d": polyline_length(pts), "length2d": polyline_length([[p[0], p[1], 0.0] for p in pts])}
@@ -201,7 +219,7 @@ def delete_measurement(project_id: str, measurement_id: str, user: User = Depend
     project_for(db, user, project_id, "editor")
     m = db.get(Measurement, measurement_id)
     if m is None or m.tenant_id != user.tenant_id or m.project_id != project_id:
-        raise HTTPException(404, "measurement not found")
+        raise CodedHTTPException(404, ERR_INVALID_VALUE, "measurement not found")
     db.delete(m)
     db.commit()
     return Response(status_code=204)
@@ -223,7 +241,7 @@ def transform(req: TransformRequest, _: User = Depends(current_user)) -> dict:
 
     a = np.asarray(req.points, dtype=np.float64)
     if a.ndim != 2 or a.shape[1] not in (2, 3):
-        raise HTTPException(422, "points must be [[a, b, height?], ...]")
+        raise CodedHTTPException(422, ERR_INVALID_VALUE, "points must be [[a, b, height?], ...]")
     height = a[:, 2] if a.shape[1] == 3 else np.zeros(len(a))
     try:
         if req.direction == "geographic_to_plane":
@@ -239,5 +257,5 @@ def transform(req: TransformRequest, _: User = Depends(current_user)) -> dict:
             rows = [{"lat": float(la), "lon": float(lo), "h": float(hh + n), "H": float(hh), "N": float(n)}
                     for la, lo, hh, n in zip(lat, lon, H, N)]
     except crs.OutsideGeoidCoverage as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise CodedHTTPException(422, ERR_CRS_OUTSIDE_GEOID, str(exc), {"reason": str(exc), "detail": str(exc)}) from exc
     return {"crs": "EPSG:6677 (X north, Y east)", "geoid": info.to_dict(), "points": rows}

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { api } from "./api/client";
-import { useStore } from "./store";
+import { localizeError, t } from "./i18n";
+import { syncDocumentLang, useStore } from "./store";
 import { AnalysisPanel, ProfileDrawer } from "./ui/AnalysisPanel";
 import { Hud, LayerPanel, MeasurementPanel, StatusBar, Toolbar } from "./ui/panels";
 import { PhotoOverlay, PhotoPanel } from "./ui/PhotoPanel";
@@ -8,6 +9,11 @@ import { Viewer } from "./ui/Viewer";
 
 export default function App() {
   const set = useStore((s) => s.set);
+  const lang = useStore((s) => s.lang);
+
+  useEffect(() => {
+    syncDocumentLang(lang);
+  }, [lang]);
 
   useEffect(() => {
     (async () => {
@@ -26,7 +32,10 @@ export default function App() {
       set({
         measurements: saved.map((m) => ({ id: m.id, kind: m.kind, label: m.label, points: m.points, savedId: m.id })),
       });
-    })().catch((err) => set({ error: `Startup failed: ${err.message ?? err}. Is the backend running on :8000?` }));
+    })().catch((err) => {
+      const curLang = useStore.getState().lang;
+      set({ error: t(curLang, "app.startupFailed", { detail: localizeError(err, curLang) }) });
+    });
   }, [set]);
 
   return (

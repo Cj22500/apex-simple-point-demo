@@ -18,6 +18,7 @@ from app.core import pcio
 from app.core.octree import OctreeConfig, build_octree
 from app.core.pointset import PointSet
 from app.db import Dataset, Job, Project, ProjectMember, Tenant, User
+from app.errors import ERR_INVALID_VALUE, ERR_POINT_CLOUD_TOO_SMALL, ERR_UNSUPPORTED_FORMAT
 from app.storage import LocalStorage
 
 log = logging.getLogger("spl")
@@ -55,7 +56,21 @@ class JobRunner:
             self._set(job_id, status="done", progress=1.0, result=result or {})
         except Exception as exc:  # noqa: BLE001  (record any failure on the job row)
             log.error("job %s failed: %s", job_id, traceback.format_exc())
-            self._set(job_id, status="failed", error=str(exc)[:2000])
+            err_code = getattr(exc, "code", None)
+            if not err_code:
+                msg = str(exc).lower()
+                if "empty point cloud" in msg:
+                    err_code = ERR_POINT_CLOUD_TOO_SMALL
+                elif isinstance(exc, pcio.UnsupportedFormat):
+                    err_code = ERR_UNSUPPORTED_FORMAT
+                else:
+                    err_code = ERR_INVALID_VALUE
+            self._set(
+                job_id,
+                status="failed",
+                error=str(exc)[:2000],
+                result={"errorCode": err_code, "errorParams": getattr(exc, "params", None) or {}},
+            )
 
 
 def _process_pointset(storage: LocalStorage, sessions: sessionmaker, dataset_id: str, ps: PointSet, progress) -> dict:

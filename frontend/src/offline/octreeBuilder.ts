@@ -60,9 +60,11 @@ function encode(p: RawPoints, idx: Uint32Array, center: Vec3): ArrayBuffer {
   return buf;
 }
 
+export const ERR_EMPTY_POINT_CLOUD = "ERR_EMPTY_POINT_CLOUD";
+
 export function buildOctree(p: RawPoints, cfg: BuildConfig = { grid: 128, maxLeaf: 20_000, maxDepth: 12 }, onProgress?: (f: number) => void): BuiltOctree {
   const n = p.count;
-  if (!n) throw new Error("empty point cloud");
+  if (!n) throw Object.assign(new Error(`${ERR_EMPTY_POINT_CLOUD}: empty point cloud`), { code: ERR_EMPTY_POINT_CLOUD });
   const lo: Vec3 = [Infinity, Infinity, Infinity];
   const hi: Vec3 = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < n; i++) {
@@ -154,7 +156,7 @@ export function buildOctree(p: RawPoints, cfg: BuildConfig = { grid: 128, maxLea
   const pct = (f: number) => zs[Math.min(zs.length - 1, Math.floor(f * zs.length))]!;
   const hierarchy: Hierarchy = {
     format: "spl-octree-1",
-    crs: "unknown (local file)",
+    crs: "unknown",
     points: n,
     cube: { min: lo, size },
     bounds: { min: lo, max: hi },

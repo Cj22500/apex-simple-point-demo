@@ -50,6 +50,13 @@ def test_profile_and_dxf(ctx):
     d = c.post(f"/api/datasets/{ids['A']}/profile.dxf", json=body, headers=h)
     doc = ezdxf.read(io.StringIO(d.content.decode()))
     assert len(doc.modelspace().query("LWPOLYLINE[layer=='PROFILE']")) == 1
+    en_texts = [e.dxf.text for e in doc.modelspace().query("TEXT[layer=='PROFILE']")]
+    assert any("section (" in t for t in en_texts)
+
+    d_ja = c.post(f"/api/datasets/{ids['A']}/profile.dxf?lang=ja", json=body, headers=h)
+    doc_ja = ezdxf.read(io.StringIO(d_ja.content.decode()))
+    ja_texts = [e.dxf.text for e in doc_ja.modelspace().query("TEXT[layer=='PROFILE']")]
+    assert any("縦断図 (" in t for t in ja_texts)
 
 
 def test_volume_endpoint_and_report(ctx):
@@ -65,6 +72,7 @@ def test_volume_endpoint_and_report(ctx):
     assert tif.status_code == 200 and tif.content[:2] in (b"II", b"MM")
     bad = c.post(f"/api/datasets/{ids['A']}/volume", json={"polygon": [L(0, 0), L(0.1, 0), L(0, 0.1)], "reference": 0}, headers=h)
     assert bad.status_code == 422
+    assert bad.json()["code"] == "TOO_FEW_POINTS_IN_POLYGON" and isinstance(bad.json()["params"], dict) and bad.json()["detail"]
 
 
 def test_change_detection_job(ctx):
@@ -81,6 +89,7 @@ def test_asbuilt_job(ctx):
     c, h, pid, ids = ctx
     design = c.get(f"/api/projects/{pid}/design", headers=h).json()
     assert len(design["triangles"]) == 18
+    assert design["sourceKey"] == "synthetic_design"
     r = c.post(f"/api/datasets/{ids['A']}/asbuilt", headers=h).json()
     job = c.get(f"/api/jobs/{r['jobId']}", headers=h).json()
     assert job["status"] == "done", job
@@ -90,13 +99,23 @@ def test_asbuilt_job(ctx):
     dxf_bytes = c.get(f"/api/projects/{pid}/design.dxf", headers=h).content
     up = c.post(f"/api/projects/{pid}/design", headers=h, files={"file": ("d.dxf", dxf_bytes)}).json()
     assert up["triangles"] == 18
+    assert c.get(f"/api/projects/{pid}/design", headers=h).json()["sourceKey"] == "uploaded"
 
 
 def test_sima_export_import_round_trip(ctx):
     c, h, pid, _ = ctx
+    cps = c.get(f"/api/projects/{pid}/control-points", headers=h).json()
+    assert cps[0]["name"] == "基準点1"
+    assert cps[0]["nameEn"] == "CP-1" and cps[0]["nameJa"] == "基準点1"
+
     data = c.get(f"/api/projects/{pid}/export.sim", headers=h).content
     f = sima.read_sima(data)
     assert f.encoding == "cp932" and f.points[0].name == "基準点1"
+    f_en = sima.read_sima(c.get(f"/api/projects/{pid}/export.sim?lang=en", headers=h).content)
+    assert f_en.points[0].name == "CP-1"
+    f_ja = sima.read_sima(c.get(f"/api/projects/{pid}/export.sim?lang=ja", headers=h).content)
+    assert f_ja.points[0].name == "基準点1"
+
     cp = site.control_points()[0]
     assert f.points[0].X == pytest.approx(cp["N"], abs=1e-4) and f.points[0].Y == pytest.approx(cp["E"], abs=1e-4)
     r = c.post(f"/api/projects/{pid}/import/sima", headers=h, files={"file": ("x.sim", data)}).json()
@@ -109,20 +128,34 @@ def test_sima_export_import_round_trip(ctx):
 def test_dxf_plan_export(ctx):
     c, h, pid, _ = ctx
     c.post(f"/api/projects/{pid}/measurements", headers=h, json={"kind": "distance", "points": [L(130, 45) + [3.5], L(160, 45) + [5.0]]})
+    c.post(f"/api/projects/{pid}/measurements", headers=h, json={"kind": "distance", "points": [L(135, 45) + [3.0], L(135, 45) + [5.0]]})
     doc = ezdxf.read(io.StringIO(c.get(f"/api/projects/{pid}/export.dxf", headers=h).content.decode()))
     msp = doc.modelspace()
     assert len(msp.query("POINT[layer=='SURVEY_POINTS']")) >= 6
     assert len(msp.query("LINE[layer=='MEASUREMENTS']")) >= 1
+    assert any(e.dxf.text == "CP-1" for e in msp.query("TEXT[layer=='SURVEY_POINTS']"))
+    assert any("vertical" in e.dxf.text for e in msp.query("TEXT[layer=='MEASUREMENTS']"))
+
+    doc_ja = ezdxf.read(io.StringIO(c.get(f"/api/projects/{pid}/export.dxf?lang=ja", headers=h).content.decode()))
+    msp_ja = doc_ja.modelspace()
+    assert any(e.dxf.text == "基準点1" for e in msp_ja.query("TEXT[layer=='SURVEY_POINTS']"))
+    assert any("鉛直" in e.dxf.text for e in msp_ja.query("TEXT[layer=='MEASUREMENTS']"))
 
 
 def test_delete_dataset_rules(ctx):
     c, h, pid, ids = ctx
-    assert c.delete(f"/api/datasets/{ids['A']}", headers=h).status_code == 409  # has derived children
+    conflict = c.delete(f"/api/datasets/{ids['A']}", headers=h)
+    assert conflict.status_code == 409  # has derived children
+    assert conflict.json()["code"] == "CANNOT_DELETE_BASE_DATASET" and isinstance(conflict.json()["params"], dict)
     viewer = {"Authorization": "Bearer " + c.post("/api/auth/dev-token", params={"email": "viewer@example.com"}).json()["token"]}
     child = next(d for d in c.get(f"/api/projects/{pid}/datasets", headers=h).json() if d["parentId"] and d["meta"].get("derivedBy") == "asbuilt")
-    assert c.delete(f"/api/datasets/{child['id']}", headers=viewer).status_code == 403
+    denied = c.delete(f"/api/datasets/{child['id']}", headers=viewer)
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "ROLE_REQUIRED" and denied.json()["params"] == {"role": "editor"}
     assert c.delete(f"/api/datasets/{child['id']}", headers=h).status_code == 204
-    assert c.get(f"/api/datasets/{child['id']}", headers=h).status_code == 404
+    missing = c.get(f"/api/datasets/{child['id']}", headers=h)
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "DATASET_NOT_FOUND" and isinstance(missing.json()["params"], dict)
 
 
 def test_export_laz(ctx):
@@ -135,6 +168,7 @@ def test_profile_dxf_zero_length_returns_422(ctx):
     c, h, _, ids = ctx
     r = c.post(f"/api/datasets/{ids['A']}/profile.dxf", json={"a": L(125, 45), "b": L(125, 45)}, headers=h)
     assert r.status_code == 422
+    assert r.json()["code"] == "INVALID_VALUE" and "reason" in r.json()["params"]
 
 
 def test_export_laz_cleans_up_temp_dir(ctx, monkeypatch, tmp_path):

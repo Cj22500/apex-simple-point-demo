@@ -25,8 +25,13 @@ def auth(client, email="demo@example.com"):
 
 
 def test_requires_token(client):
-    assert client.get("/api/projects").status_code == 401
-    assert client.get("/api/projects", headers={"Authorization": "Bearer forged.sig"}).status_code == 401
+    r1 = client.get("/api/projects")
+    assert r1.status_code == 401
+    b1 = r1.json()
+    assert b1["code"] == "AUTH_INVALID_TOKEN" and isinstance(b1["params"], dict) and b1["detail"]
+    r2 = client.get("/api/projects", headers={"Authorization": "Bearer forged.sig"})
+    assert r2.status_code == 401
+    assert r2.json()["code"] == "AUTH_INVALID_TOKEN"
 
 
 def test_seeded_project_and_datasets(client):
@@ -49,7 +54,9 @@ def test_hierarchy_and_tiles(client):
     d = decode_node(r.content, root["count"], root["center"], hier["attributes"]["extras"])
     assert d["xyz"][:, 0].min() > -4301 and d["xyz"][:, 1].max() < -38859  # Toyosu, Zone IX
     assert client.get(f"/api/datasets/{ds['id']}/nodes/../../etc.bin", headers=h).status_code in (400, 404)
-    assert client.get(f"/api/datasets/{ds['id']}/nodes/rx9.bin", headers=h).status_code == 400
+    bad_node = client.get(f"/api/datasets/{ds['id']}/nodes/rx9.bin", headers=h)
+    assert bad_node.status_code == 400
+    assert bad_node.json()["code"] == "INVALID_VALUE" and "reason" in bad_node.json()["params"]
 
 
 def test_missing_hierarchy_returns_404(client):
@@ -61,7 +68,10 @@ def test_missing_hierarchy_returns_404(client):
     try:
         r = client.get(f"/api/datasets/{ds['id']}/hierarchy", headers=h)
         assert r.status_code == 404
-        assert r.json()["detail"] == "hierarchy not found"
+        body = r.json()
+        assert body["detail"] == "hierarchy not found"
+        assert body["code"] == "HIERARCHY_NOT_FOUND"
+        assert body["params"] == {}
     finally:
         bak.rename(hier)
 
@@ -76,9 +86,13 @@ def test_tenant_isolation(client, metric):
         f"/api/datasets/{ds['id']}/nodes/r.bin",
         f"/api/projects/{client.ids['project']}/measurements",
     ]
-    codes = [client.get(p, headers=h_out).status_code for p in probes]
+    responses = [client.get(p, headers=h_out) for p in probes]
+    codes = [r.status_code for r in responses]
     metric("Multi-tenancy", f"cross-tenant probes answered 404 ({len(probes)} endpoints)", sum(c != 404 for c in codes), 0, "leaks")
     assert codes == [404] * len(probes)
+    for r in responses:
+        b = r.json()
+        assert b["code"] in ("PROJECT_NOT_FOUND", "DATASET_NOT_FOUND") and isinstance(b["params"], dict) and b["detail"]
     assert client.get("/api/projects", headers=h_out).json()[0]["id"] == client.ids["other_project"]
 
 
@@ -86,7 +100,9 @@ def test_viewer_role_cannot_write(client):
     h_view = auth(client, "viewer@example.com")
     url = f"/api/projects/{client.ids['project']}/measurements"
     body = {"kind": "distance", "points": [[0, 0, 0], [3, 4, 12]]}
-    assert client.post(url, json=body, headers=h_view).status_code == 403
+    denied = client.post(url, json=body, headers=h_view)
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "ROLE_REQUIRED" and denied.json()["params"] == {"role": "editor"} and denied.json()["detail"]
     r = client.post(url, json=body, headers=auth(client))
     assert r.status_code == 201 and r.json()["result"]["distance3d"] == 13.0
     assert len(client.get(url, headers=h_view).json()) == 1  # viewer can read
@@ -129,8 +145,12 @@ def test_upload_laz_and_reject_unknown(client, tmp_path):
     assert client.get(f"/api/datasets/{r.json()['datasetId']}", headers=h).json()["pointCount"] == 2000
     bad = client.post(url, headers=h, files={"file": ("x.docx", io.BytesIO(b"nope"))})
     assert bad.status_code == 400
+    bad_body = bad.json()
+    assert bad_body["code"] == "UNSUPPORTED_FORMAT" and bad_body["params"]["suffix"] == ".docx" and "supported" in bad_body["params"]
     # viewers may not upload
-    assert client.post(url, headers=auth(client, "viewer@example.com"), files={"file": ("up.laz", path.read_bytes())}).status_code == 403
+    denied = client.post(url, headers=auth(client, "viewer@example.com"), files={"file": ("up.laz", path.read_bytes())})
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "ROLE_REQUIRED" and denied.json()["params"] == {"role": "editor"}
 
 
 def test_s3_storage_raises_clear_error_at_startup(monkeypatch, tmp_path):

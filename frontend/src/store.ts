@@ -3,6 +3,27 @@ import { create } from "zustand";
 import type { Dataset, Project } from "./api/client";
 import type { ColorMode, EngineStats, PickHit } from "./engine/PointCloudEngine";
 import type { Vec3 } from "./engine/types";
+import { t, type Lang } from "./i18n";
+
+export type { Lang };
+
+function readInitialLang(): Lang {
+  try {
+    if (typeof localStorage !== "undefined" && typeof localStorage.getItem === "function") {
+      return localStorage.getItem("spl.lang") === "ja" ? "ja" : "en";
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+  return "en";
+}
+
+export function syncDocumentLang(lang: Lang): void {
+  if (typeof document !== "undefined") {
+    if (document.documentElement) document.documentElement.lang = lang;
+    document.title = t(lang, "app.title");
+  }
+}
 
 export type Tool = "navigate" | "point" | "distance" | "polyline" | "area" | "section" | "volume" | "asbuilt";
 
@@ -25,6 +46,7 @@ export interface Geo {
 }
 
 interface State {
+  lang: Lang;
   user: { name: string; email: string } | null;
   project: Project | null;
   datasets: Dataset[];
@@ -50,6 +72,7 @@ interface State {
   /** bumped when analysis overlays (sections, volume polygons...) change */
   analysisVersion: number;
 
+  setLang: (lang: Lang) => void;
   set: (patch: Partial<State>) => void;
   setTool: (t: Tool) => void;
   addMeasurement: (m: MeasurementItem) => void;
@@ -58,6 +81,7 @@ interface State {
 }
 
 export const useStore = create<State>((set) => ({
+  lang: readInitialLang(),
   user: null,
   project: null,
   datasets: [],
@@ -82,6 +106,17 @@ export const useStore = create<State>((set) => ({
   lastPick: null,
   analysisVersion: 0,
 
+  setLang: (lang) => {
+    try {
+      if (typeof localStorage !== "undefined" && typeof localStorage.setItem === "function") {
+        localStorage.setItem("spl.lang", lang);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+    syncDocumentLang(lang);
+    set({ lang });
+  },
   set: (patch) => set(patch),
   setTool: (tool) => set({ tool, pending: [] }),
   addMeasurement: (m) => set((s) => ({ measurements: [...s.measurements, m], selectedId: m.id, pending: [] })),

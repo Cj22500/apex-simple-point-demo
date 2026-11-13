@@ -5,9 +5,10 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -22,13 +23,23 @@ from app.core.analysis import extract_profile, statistical_outlier_removal, vert
 from app.core.pointset import PointSet
 from app.core.volume import build_dem, points_in_polygon, volume_grid, volume_tin, write_geotiff
 from app.db import Dataset, Report, User
+from app.errors import (
+    ERR_DATASET_NOT_READY,
+    ERR_DATASETS_DIFFERENT_PROJECTS,
+    ERR_INVALID_DESIGN_DXF,
+    ERR_INVALID_VALUE,
+    ERR_NO_DESIGN_SURFACE,
+    ERR_TOO_FEW_POINTS_IN_POLYGON,
+    ERR_UNSUPPORTED_FORMAT,
+    CodedHTTPException,
+)
 
 router = APIRouter(prefix="/api")
 
 
 def _ready(ds: Dataset) -> None:
     if ds.status != "ready":
-        raise HTTPException(409, f"dataset is {ds.status}")
+        raise CodedHTTPException(409, ERR_DATASET_NOT_READY, f"dataset is {ds.status}", {"status": ds.status})
 
 
 def _save_report(db: Session, user: User, ds: Dataset, kind: str, params: dict, result: dict) -> str:
@@ -75,7 +86,7 @@ def _profile_or_422(request: Request, ds: Dataset, req: ProfileRequest):
     try:
         return extract_profile(np.asarray(ps.xyz), req.a, req.b, req.halfWidth, req.binSize, 0.1, cls)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise CodedHTTPException(422, ERR_INVALID_VALUE, str(exc), {"reason": str(exc), "detail": str(exc)}) from exc
 
 
 @router.post("/datasets/{dataset_id}/profile")
@@ -96,11 +107,19 @@ def profile(dataset_id: str, req: ProfileRequest, request: Request, user: User =
 
 
 @router.post("/datasets/{dataset_id}/profile.dxf")
-def profile_dxf(dataset_id: str, req: ProfileRequest, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+def profile_dxf(
+    dataset_id: str,
+    req: ProfileRequest,
+    request: Request,
+    lang: Literal["en", "ja"] = Query("en"),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     ds = dataset_for(db, user, dataset_id)
     _ready(ds)
     p = _profile_or_422(request, ds, req)
-    data = dxf.profile_dxf(p.ground_station, p.ground_z, title=f"{ds.name} section ({p.length:.2f} m)")
+    title = f"{ds.name} 縦断図 ({p.length:.2f} m)" if lang == "ja" else f"{ds.name} section ({p.length:.2f} m)"
+    data = dxf.profile_dxf(p.ground_station, p.ground_z, title=title)
     return Response(data, media_type="application/dxf", headers={"Content-Disposition": 'attachment; filename="profile.dxf"'})
 
 
@@ -131,7 +150,7 @@ def volume(dataset_id: str, req: VolumeRequest, request: Request, user: User = D
     _ready(ds)
     pts = _region(request, ds, req.polygon, req.groundOnly)
     if len(pts) < 3:
-        raise HTTPException(422, "fewer than 3 points inside the polygon")
+        raise CodedHTTPException(422, ERR_TOO_FEW_POINTS_IN_POLYGON, "fewer than 3 points inside the polygon")
     poly = np.asarray(req.polygon)[:, :2]
     r = volume_tin(pts, poly, req.reference) if req.method == "tin" else volume_grid(pts, poly, req.reference, req.cellSize)
     result = {**r.to_dict(), "points": int(len(pts))}
@@ -145,7 +164,7 @@ def dem_tif(dataset_id: str, req: VolumeRequest, request: Request, user: User = 
     _ready(ds)
     pts = _region(request, ds, req.polygon, req.groundOnly)
     if len(pts) < 3:
-        raise HTTPException(422, "fewer than 3 points inside the polygon")
+        raise CodedHTTPException(422, ERR_TOO_FEW_POINTS_IN_POLYGON, "fewer than 3 points inside the polygon")
     dem = build_dem(pts, req.cellSize, np.asarray(req.polygon)[:, :2])
     with tempfile.TemporaryDirectory() as d:
         path = Path(d) / "dem.tif"
@@ -168,7 +187,7 @@ def change(req: ChangeRequest, request: Request, user: User = Depends(current_us
     _ready(a)
     _ready(b)
     if a.project_id != b.project_id:
-        raise HTTPException(422, "datasets belong to different projects")
+        raise CodedHTTPException(422, ERR_DATASETS_DIFFERENT_PROJECTS, "datasets belong to different projects")
 
     def fn(pb: PointSet, pa: PointSet, progress):
         res = vertical_change(pa.xyz, pb.xyz, k=req.k)
@@ -187,25 +206,30 @@ def design_path(request: Request, project_id: str) -> Path:
     return d / f"{project_id}.json"
 
 
-def load_design(request: Request, db: Session, project_id: str) -> tuple[np.ndarray, np.ndarray, str]:
+def _load_design_with_key(request: Request, db: Session, project_id: str) -> tuple[np.ndarray, np.ndarray, str, str]:
     p = design_path(request, project_id)
     if p.exists():
         j = json.loads(p.read_text(encoding="utf-8"))
-        return np.array(j["vertices"]), np.array(j["triangles"]), j.get("source", "uploaded")
+        return np.array(j["vertices"]), np.array(j["triangles"]), j.get("source", "uploaded"), "uploaded"
     synthetic = db.query(Dataset).filter_by(project_id=project_id).filter(Dataset.source_format == "synthetic").first()
     if synthetic is None:
-        raise HTTPException(404, "no design surface for this project; upload a DXF with 3DFACE entities")
+        raise CodedHTTPException(404, ERR_NO_DESIGN_SURFACE, "no design surface for this project; upload a DXF with 3DFACE entities")
     from app.synthetic import site
 
     v, t = site.design_tin()
-    return v, t, "synthetic design (pad + 1:0.5 pit)"
+    return v, t, "synthetic design (pad + 1:0.5 pit)", "synthetic_design"
+
+
+def load_design(request: Request, db: Session, project_id: str) -> tuple[np.ndarray, np.ndarray, str]:
+    v, t, src, _ = _load_design_with_key(request, db, project_id)
+    return v, t, src
 
 
 @router.get("/projects/{project_id}/design")
 def get_design(project_id: str, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     project_for(db, user, project_id)
-    v, t, src = load_design(request, db, project_id)
-    return {"source": src, "vertices": v.tolist(), "triangles": t.tolist()}
+    v, t, src, source_key = _load_design_with_key(request, db, project_id)
+    return {"source": src, "sourceKey": source_key, "vertices": v.tolist(), "triangles": t.tolist()}
 
 
 @router.post("/projects/{project_id}/design")
@@ -214,7 +238,12 @@ async def upload_design(project_id: str, request: Request, file: UploadFile = Fi
     try:
         v, t = dxf.read_design_tin(await file.read())
     except Exception as exc:  # noqa: BLE001  (any parse failure is a client error)
-        raise HTTPException(400, f"cannot read design DXF: {exc}") from exc
+        raise CodedHTTPException(
+            400,
+            ERR_INVALID_DESIGN_DXF,
+            f"cannot read design DXF: {exc}",
+            {"reason": str(exc), "detail": str(exc)},
+        ) from exc
     design_path(request, project_id).write_text(json.dumps({"vertices": v.tolist(), "triangles": t.tolist(), "source": file.filename}), encoding="utf-8")
     return {"vertices": len(v), "triangles": len(t)}
 
@@ -264,7 +293,7 @@ def export_points(dataset_id: str, ext: str, request: Request, user: User = Depe
     from app.core import pcio
 
     if ext not in ("las", "laz", "ply", "xyz", "pts", "e57"):
-        raise HTTPException(400, "unsupported export format")
+        raise CodedHTTPException(400, ERR_UNSUPPORTED_FORMAT, "unsupported export format", {"format": ext})
     ds = dataset_for(db, user, dataset_id)
     _ready(ds)
     ps = request.app.state.storage.load_arrays(ds.id, mmap=False)
