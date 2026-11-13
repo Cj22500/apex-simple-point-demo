@@ -67,7 +67,8 @@ describe("cost controls", () => {
     t.hasResourceProperties("AWS::CloudFront::Distribution", {
       DistributionConfig: Match.objectLike({ CacheBehaviors: Match.arrayWith([Match.objectLike({ PathPattern: "/tiles/*" })]) }),
     });
-    t.hasResourceProperties("AWS::Logs::LogGroup", { RetentionInDays: 14 });
+    t.resourceCountIs("AWS::Logs::LogGroup", 3);
+    t.allResourcesProperties("AWS::Logs::LogGroup", { RetentionInDays: 14 });
     t.hasResourceProperties("AWS::Budgets::Budget", { Budget: Match.objectLike({ BudgetLimit: { Amount: 150, Unit: "USD" } }) });
   });
 });

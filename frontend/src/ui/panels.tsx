@@ -16,7 +16,7 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "area", label: "Area", hint: "Click polygon vertices, double-click or Enter to finish (plan area)" },
   { id: "section", label: "Section", hint: "Click two points to cut a cross-section" },
   { id: "volume", label: "Volume", hint: "Click a polygon, Enter to compute cut/fill" },
-  { id: "asbuilt", label: "As-built", hint: "Check the pit against its design surface (MLIT 出来形)" },
+  { id: "asbuilt", label: "As-built", hint: "Run MLIT 出来形 check or upload/download the design TIN (DXF) in the right panel" },
 ];
 
 export function Toolbar() {

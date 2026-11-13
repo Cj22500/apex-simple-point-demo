@@ -22,6 +22,11 @@ from app.storage import LocalStorage
 
 def create_app(data_dir: Path | None = None, database_url: str | None = None, seed: bool | None = None,
                seed_density: float | None = None, sync_jobs: bool = False) -> FastAPI:
+    storage_backend = os.environ.get("SPL_STORAGE", "local").strip().lower()
+    if storage_backend == "s3":
+        raise NotImplementedError("S3 storage adapter not implemented yet; the worker (app/worker.py) is S3-aware")
+    if storage_backend != "local":
+        raise ValueError(f"unsupported SPL_STORAGE backend: {storage_backend!r}")
     data_dir = Path(data_dir or config.DATA_DIR)
     data_dir.mkdir(parents=True, exist_ok=True)
     url = database_url or os.environ.get("SPL_DATABASE_URL") or f"sqlite:///{(data_dir / 'spl.sqlite3').as_posix()}"

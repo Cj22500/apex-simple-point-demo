@@ -141,7 +141,7 @@ def main() -> None:
         show_only(page, "d => d.epoch === 'A' && d.meta?.derivedBy === 'clean'")
         run_job(page, "As-built check")
         look(page, L(40, 35, 1.5), 38)
-        page.locator(".verdict").scroll_into_view_if_needed()
+        page.locator(".asbuilt-report").scroll_into_view_if_needed()
         page.wait_for_timeout(500)
         shot(page, "07-asbuilt-inspection.jpg")
 

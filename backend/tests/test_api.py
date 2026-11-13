@@ -117,3 +117,9 @@ def test_upload_laz_and_reject_unknown(client, tmp_path):
     assert bad.status_code == 400
     # viewers may not upload
     assert client.post(url, headers=auth(client, "viewer@example.com"), files={"file": ("up.laz", path.read_bytes())}).status_code == 403
+
+
+def test_s3_storage_raises_clear_error_at_startup(monkeypatch, tmp_path):
+    monkeypatch.setenv("SPL_STORAGE", "s3")
+    with pytest.raises(NotImplementedError, match="S3 storage adapter not implemented yet; the worker \\(app/worker\\.py\\) is S3-aware"):
+        create_app(data_dir=tmp_path, seed=False)

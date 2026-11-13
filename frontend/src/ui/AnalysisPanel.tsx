@@ -9,6 +9,16 @@ import { activeDataset, applyClip, loadProfile, useAnalysis, waitForJob, type Co
 
 const mm = (m: number | null | undefined) => (m === null || m === undefined ? "–" : `${(m * 1000).toFixed(1)} mm`);
 
+async function runDerivedJob(task: string, path: string, body: unknown, hide: string[], after?: () => void) {
+  try {
+    const r = await api.post<{ datasetId: string; jobId: string }>(path, body);
+    await waitForJob(r.jobId, task, { id: r.datasetId, hide });
+    after?.();
+  } catch (e) {
+    useStore.getState().set({ error: String(e) });
+  }
+}
+
 // ------------------------------------------------------------------ right panel
 export function AnalysisPanel() {
   const project = useStore((s) => s.project);
@@ -28,6 +38,7 @@ export function AnalysisPanel() {
     <>
       {(tool === "section" || a.section) && <SectionControls />}
       {(tool === "volume" || a.volumePolygon) && <VolumeControls />}
+      {tool === "asbuilt" && <AsBuiltControls ds={ds} canWrite={canWrite} />}
       <section>
         <h3>Processing {ds && <span className="muted">· {ds.name}</span>}</h3>
         {!ds && <div className="muted small">Show a dataset to process it.</div>}
@@ -137,6 +148,120 @@ function TruthHint() {
   );
 }
 
+function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boolean }) {
+  const project = useStore((s) => s.project);
+  const [design, setDesign] = useState<{ source: string; vertices: number; triangles: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const loadDesign = async (projectId: string) => {
+    setLoading(true);
+    try {
+      const r = await api.get<{ source: string; vertices: unknown[]; triangles: unknown[] }>(`/projects/${projectId}/design`);
+      setDesign({ source: r.source, vertices: r.vertices.length, triangles: r.triangles.length });
+    } catch {
+      setDesign(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (project) void loadDesign(project.id);
+  }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!project) return null;
+  const isSeeded = design?.source.startsWith("synthetic design") ?? false;
+
+  return (
+    <section>
+      <h3>As-built (出来形 · MLIT 面管理)</h3>
+      <div className="small muted">
+        {loading
+          ? "Checking design surface…"
+          : design
+            ? `Design (${isSeeded ? "seeded demo" : "uploaded"}): ${design.source} · ${design.triangles} tris`
+            : "No design surface for this project. Upload a DXF with 3DFACE entities."}
+      </div>
+      <div className="row wrap" style={{ marginTop: 8 }}>
+        {canWrite && (
+          <button
+            className="primary"
+            disabled={!ds || !design}
+            onClick={() =>
+              ds && runDerivedJob("As-built", `/datasets/${ds.id}/asbuilt`, {}, [ds.id], () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))
+            }
+          >
+            Run as-built check
+          </button>
+        )}
+        {design && (
+          <a
+            className="ghost small"
+            href={`/api/projects/${project.id}/design.dxf`}
+            download="design_tin.dxf"
+            style={{ textDecoration: "none" }}
+            onClick={(e) => {
+              e.preventDefault();
+              void api.download(`/projects/${project.id}/design.dxf`, "design_tin.dxf");
+            }}
+          >
+            Download design TIN (DXF)
+          </a>
+        )}
+      </div>
+      {canWrite && (
+        <label className="upload">
+          {uploading ? "Uploading design DXF…" : "+ Upload Design TIN (.dxf 3DFACE)"}
+          <input
+            type="file"
+            accept=".dxf"
+            disabled={uploading}
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              setUploadErr(null);
+              setUploading(true);
+              try {
+                const fd = new FormData();
+                fd.append("file", f);
+                const res = await fetch(`/api/projects/${project.id}/design`, {
+                  method: "POST",
+                  body: fd,
+                  headers: { Authorization: `Bearer ${api.token}` },
+                });
+                if (!res.ok) {
+                  let msg = res.statusText;
+                  const text = await res.text();
+                  try {
+                    const j = JSON.parse(text);
+                    msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail ?? j);
+                  } catch {
+                    if (text) msg = text;
+                  }
+                  throw new Error(msg);
+                }
+                const r = (await res.json()) as { vertices: number; triangles: number };
+                setDesign({ source: f.name, vertices: r.vertices, triangles: r.triangles });
+              } catch (err) {
+                setUploadErr(err instanceof Error ? err.message : String(err));
+              } finally {
+                setUploading(false);
+                e.target.value = "";
+              }
+            }}
+          />
+        </label>
+      )}
+      {uploadErr && <div className="small warn" style={{ marginTop: 4 }}>{uploadErr}</div>}
+      <div className="small muted" style={{ marginTop: 6 }}>
+        MLIT tolerances: 平場 ±50 / ±150 mm · 法面 ±70 / ±160 mm · ≥1 pt/m² · ±5 cm crest/toe exclusion.
+      </div>
+    </section>
+  );
+}
+
 function ProcessingControls({ ds, datasets }: { ds: Dataset; datasets: Dataset[] }) {
   const epochs = datasets.filter((d) => d.status === "ready" && d.meta?.derivedBy !== "asbuilt" && d.meta?.derivedBy !== "change");
   const [refId, setRefId] = useState<string>("");
@@ -150,15 +275,8 @@ function ProcessingControls({ ds, datasets }: { ds: Dataset; datasets: Dataset[]
     setRefId(bestA);
     setCmpId(bestB);
   }, [bestA, bestB]);
-  const run = async (task: string, path: string, body: unknown, after?: () => void) => {
-    try {
-      const r = await api.post<{ datasetId: string; jobId: string }>(path, body);
-      await waitForJob(r.jobId, task, { id: r.datasetId, hide: [ds.id, refId, cmpId] });
-      after?.();
-    } catch (e) {
-      useStore.getState().set({ error: String(e) });
-    }
-  };
+  const run = (task: string, path: string, body: unknown, after?: () => void) =>
+    runDerivedJob(task, path, body, [ds.id, refId, cmpId], after);
   return (
     <>
       <div className="row wrap">
@@ -212,7 +330,7 @@ function Reports({ ds }: { ds: Dataset | null }) {
       </tr>
     );
     return (
-      <div style={{ marginTop: 8 }}>
+      <div className="asbuilt-report" style={{ marginTop: 8 }}>
         <div className={`verdict ${rep.pass ? "pass" : "fail"}`}>{rep.pass ? "PASS" : "FAIL"} · 出来形 (MLIT 面管理)</div>
         <table className="kv mono" style={{ marginTop: 6 }}>
           <thead><tr className="muted small"><td>Surface</td><td>pts</td><td>mean</td><td>&gt; tol</td></tr></thead>

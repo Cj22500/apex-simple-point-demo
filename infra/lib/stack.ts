@@ -76,13 +76,17 @@ export class SimplePointStack extends cdk.Stack {
       enforceSSL: true,
     });
 
+    const notifierLogs = new logs.LogGroup(this, "UploadNotifierLogs", {
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const notifier = new lambda.Function(this, "UploadNotifier", {
       runtime: lambda.Runtime.PYTHON_3_13,
       architecture: lambda.Architecture.ARM_64,
       handler: "index.handler",
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.TWO_WEEKS,
+      logGroup: notifierLogs,
       environment: { QUEUE_URL: queue.queueUrl },
       code: lambda.Code.fromInline(`
 import json, os, boto3
@@ -149,6 +153,10 @@ def handler(event, _ctx):
       SPL_DB_PASSWORD: ecs.Secret.fromSecretsManager(db.secret!, "password"),
     };
 
+    const apiLogs = new logs.LogGroup(this, "ApiLogs", {
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const api = new ecsPatterns.ApplicationLoadBalancedFargateService(this, "Api", {
       cluster,
       cpu: 512,
@@ -164,7 +172,7 @@ def handler(event, _ctx):
         containerPort: 8000,
         environment: env,
         secrets,
-        logDriver: ecs.LogDrivers.awsLogs({ streamPrefix: "api", logRetention: logs.RetentionDays.TWO_WEEKS }),
+        logDriver: ecs.LogDrivers.awsLogs({ streamPrefix: "api", logGroup: apiLogs }),
       },
       publicLoadBalancer: true,
     });
@@ -172,6 +180,10 @@ def handler(event, _ctx):
     const apiScaling = api.service.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 4 });
     apiScaling.scaleOnCpuUtilization("Cpu", { targetUtilizationPercent: 70 });
 
+    const workerLogs = new logs.LogGroup(this, "WorkerLogs", {
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const worker = new ecsPatterns.QueueProcessingFargateService(this, "Worker", {
       cluster,
       queue,
@@ -197,7 +209,7 @@ def handler(event, _ctx):
       ],
       environment: env,
       secrets,
-      logDriver: ecs.LogDrivers.awsLogs({ streamPrefix: "worker", logRetention: logs.RetentionDays.TWO_WEEKS }),
+      logDriver: ecs.LogDrivers.awsLogs({ streamPrefix: "worker", logGroup: workerLogs }),
     });
 
     // ---------------------------------------------------------------- least-privilege IAM

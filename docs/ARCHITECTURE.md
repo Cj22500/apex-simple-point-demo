@@ -88,4 +88,7 @@ Cost decisions encoded in the stack:
 - **Graviton/ARM64** images: cheaper per vCPU.
 - **Scale to zero** workers; **lifecycle** raw uploads; CloudFront caches tiles (fewer S3 GETs); **log retention 14 days**; **AWS Budgets** alarm at 80 % of a forecast monthly limit.
 
-Next steps for production: S3 storage adapter in the API (the worker already uses S3), Cognito JWT auth in `auth.py`, COPC output for interoperability, a WebGPU renderer, and multi-GB datasets with streaming octree builds (PDAL/Entwine-style out-of-core processing).
+## Known gaps & next steps
+
+- **API S3 storage adapter:** `SPL_STORAGE=s3` raises at API startup because the API S3 adapter is not implemented yet (`app/worker.py` already supports S3); adding an `S3Storage` adapter to the API is the next step for cloud deployment.
+- **Production roadmap:** Cognito JWT auth in `auth.py`, COPC output for interoperability, a WebGPU renderer, and multi-GB datasets with streaming octree builds (PDAL/Entwine-style out-of-core processing).

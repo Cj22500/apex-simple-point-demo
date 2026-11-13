@@ -72,8 +72,8 @@ button, input, select { font: inherit; color: inherit; }
 .legend { height: 10px; border-radius: 3px; margin-top: 8px; grid-column: 1 / -1; }
 .legend.turbo { background: linear-gradient(90deg, #30123b, #4662d7, #36aaf9, #1ae4b6, #72fe5e, #c7ef34, #fbb938, #f56918, #c92903, #7a0403); }
 .legend.diverging { background: linear-gradient(90deg, #053061, #4393c3, #f7f7f7, #d6604d, #67001f); }
-button.ghost { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
-button.ghost:hover { border-color: var(--accent); }
+button.ghost, a.ghost { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; color: inherit; display: inline-block; }
+button.ghost:hover, a.ghost:hover { border-color: var(--accent); }
 button.ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
 button.primary { background: var(--accent); color: #04121a; border: 0; border-radius: 4px; padding: 5px 12px; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: 0.5; cursor: default; }
@@ -83,13 +83,13 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 /* stage */
 .stage { grid-area: stage; position: relative; overflow: hidden; }
-.viewer { position: absolute; inset: 0; }
-.viewer[data-tool]:not([data-tool="navigate"]) { cursor: crosshair; }
+.viewer { position: absolute; inset: 0; z-index: 1; }
+.viewer[data-tool]:not([data-tool="navigate"]):not([data-tool="asbuilt"]) { cursor: crosshair; }
 .viewer canvas { display: block; }
-.label-layer { position: absolute; inset: 0; pointer-events: none; }
+.label-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .m-label { font: 600 11.5px var(--mono); color: #04121a; background: var(--accent); padding: 1px 6px; border-radius: 3px; white-space: nowrap; transform: translateY(-14px); }
 .m-label.sel { background: var(--accent-2); }
-.hud { position: absolute; top: 10px; right: 10px; background: rgba(11, 15, 20, 0.78); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 11.5px; line-height: 1.5; pointer-events: none; color: #d8e1ea; }
+.hud { position: absolute; top: 10px; right: 10px; z-index: 5; background: rgba(11, 15, 20, 0.78); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 11.5px; line-height: 1.5; pointer-events: none; color: #d8e1ea; }
 
 /* status bar */
 .statusbar { grid-area: status; display: flex; gap: 16px; align-items: center; padding: 4px 12px; background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; min-height: 26px; }
@@ -116,7 +116,7 @@ table.kv td:last-child { text-align: right; }
 }
 
 /* profile drawer (2D CAD section view) */
-.profile-drawer { position: absolute; left: 0; right: 0; bottom: 0; height: 290px; background: rgba(11, 15, 20, 0.96); border-top: 1px solid var(--line); display: flex; flex-direction: column; color: #d8e1ea; }
+.profile-drawer { position: absolute; left: 0; right: 0; bottom: 0; height: 290px; z-index: 6; background: rgba(11, 15, 20, 0.96); border-top: 1px solid var(--line); display: flex; flex-direction: column; color: #d8e1ea; }
 .profile-head { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .profile-body { position: relative; flex: 1; min-height: 0; }
 .profile-body canvas, .profile-body svg { position: absolute; inset: 0; }
@@ -138,7 +138,7 @@ button.icon:hover { color: var(--danger); }
 .thumb { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 2px; cursor: pointer; font: 10px var(--mono); color: var(--muted); }
 .thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; border-radius: 2px; }
 .thumb.sel { border-color: var(--accent-2); color: var(--accent-2); }
-.photo-overlay { position: absolute; inset: 0; pointer-events: none; }
+.photo-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 .photo-frame { position: absolute; top: 0; height: 100%; left: 50%; transform: translateX(-50%); }
 .photo-frame img { width: 100%; height: 100%; display: block; }
 .photo-marker { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid #ffd166; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.6); }
