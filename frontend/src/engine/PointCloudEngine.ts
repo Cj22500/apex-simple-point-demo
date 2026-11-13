@@ -82,6 +82,7 @@ export class PointCloudEngine {
   private edlTarget: THREE.WebGLRenderTarget;
   private edlScene: THREE.Scene;
   private edlCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  private edlGeometry: THREE.PlaneGeometry;
   private edlMaterial: THREE.ShaderMaterial;
   private resizeObserver: ResizeObserver;
   private photoMode = false;
@@ -168,7 +169,8 @@ export class PointCloudEngine {
       depthWrite: false,
     });
     this.edlScene = new THREE.Scene();
-    this.edlScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.edlMaterial));
+    this.edlGeometry = new THREE.PlaneGeometry(2, 2);
+    this.edlScene.add(new THREE.Mesh(this.edlGeometry, this.edlMaterial));
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -231,6 +233,10 @@ export class PointCloudEngine {
 
   hasLayer(datasetId: string) {
     return this.layers.has(datasetId);
+  }
+
+  layerIds(): string[] {
+    return [...this.layers.keys()];
   }
 
   // ------------------------------------------------------------------ settings
@@ -515,6 +521,13 @@ export class PointCloudEngine {
     for (const id of [...this.layers.keys()]) this.removeLayer(id);
     this.overlay.clear();
     this.splats.dispose();
+    this.pickTarget.dispose();
+    this.edlTarget.depthTexture?.dispose();
+    this.edlTarget.dispose();
+    this.edlMaterial.dispose();
+    this.edlGeometry.dispose();
+    (this.uniforms.uElevationMap!.value as THREE.Texture).dispose();
+    (this.uniforms.uDivergingMap!.value as THREE.Texture).dispose();
     this.controls.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

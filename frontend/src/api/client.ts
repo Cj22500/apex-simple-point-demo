@@ -106,6 +106,11 @@ export const api = {
   post: <T>(path: string, body: unknown) => req<T>(path, json(body)),
   get: <T>(path: string) => req<T>(path),
   del: (path: string) => req<unknown>(path, { method: "DELETE" }),
+  uploadFile<T>(path: string, file: File): Promise<T> {
+    const fd = new FormData();
+    fd.append("file", file);
+    return req<T>(path, { method: "POST", body: fd });
+  },
   /** authenticated download (DXF/SIMA/LAS/CSV/GeoTIFF) -> triggers a browser save */
   async download(path: string, filename: string, body?: unknown) {
     const blob = await req<Blob>(path, body === undefined ? {} : json(body));

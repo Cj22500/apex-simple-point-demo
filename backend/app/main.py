@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import quote_plus
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +21,32 @@ from app.services import JobRunner, seed_demo
 from app.storage import LocalStorage
 
 
+def _resolve_database_url(data_dir: Path, database_url: str | None = None) -> str:
+    """Resolve the database URL from explicit argument, SPL_DATABASE_URL, SPL_DB_* vars, or local SQLite."""
+    if database_url:
+        return database_url
+    env_url = os.environ.get("SPL_DATABASE_URL", "").strip()
+    if env_url:
+        return env_url
+    host = os.environ.get("SPL_DB_HOST", "").strip()
+    if host:
+        user = os.environ.get("SPL_DB_USER", "").strip()
+        password = os.environ.get("SPL_DB_PASSWORD", "")
+        name = os.environ.get("SPL_DB_NAME", "").strip()
+        missing = [k for k, v in (("SPL_DB_USER", user), ("SPL_DB_PASSWORD", password), ("SPL_DB_NAME", name)) if not v]
+        if missing:
+            raise ValueError(f"SPL_DB_HOST is set, but required database env vars are missing: {', '.join(missing)}")
+        port_raw = os.environ.get("SPL_DB_PORT", "").strip() or "5432"
+        try:
+            port = int(port_raw)
+        except ValueError as exc:
+            raise ValueError(f"invalid SPL_DB_PORT: {port_raw!r}") from exc
+        if not (1 <= port <= 65535):
+            raise ValueError(f"invalid SPL_DB_PORT: {port_raw!r}")
+        return f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{quote_plus(name)}"
+    return f"sqlite:///{(data_dir / 'spl.sqlite3').as_posix()}"
+
+
 def create_app(data_dir: Path | None = None, database_url: str | None = None, seed: bool | None = None,
                seed_density: float | None = None, sync_jobs: bool = False) -> FastAPI:
     storage_backend = os.environ.get("SPL_STORAGE", "local").strip().lower()
@@ -29,7 +56,7 @@ def create_app(data_dir: Path | None = None, database_url: str | None = None, se
         raise ValueError(f"unsupported SPL_STORAGE backend: {storage_backend!r}")
     data_dir = Path(data_dir or config.DATA_DIR)
     data_dir.mkdir(parents=True, exist_ok=True)
-    url = database_url or os.environ.get("SPL_DATABASE_URL") or f"sqlite:///{(data_dir / 'spl.sqlite3').as_posix()}"
+    url = _resolve_database_url(data_dir, database_url)
     engine, sessions = make_session_factory(url)
     Base.metadata.create_all(engine)  # Alembic migrations are used for Postgres; create_all keeps local dev simple
 

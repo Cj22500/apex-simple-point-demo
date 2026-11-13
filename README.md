@@ -2,7 +2,7 @@
 
 A browser-based 3D point cloud platform for surveying and construction, built as a working demonstration for the APEX Co., Ltd. Full-Stack Engineer role (React / AWS / Point Cloud & 3D). It's a small, open-source take on what APEX's Simple-Point (SimpleCloud) does, with every survey number verified against independent ground truth.
 
-**Stack:** React 19 + TypeScript + Three.js (custom octree renderer, Spark for 3DGS) · Python 3.14 + FastAPI + NumPy/SciPy, laspy, pyproj/PROJ, ezdxf, pye57, rasterio · SQLAlchemy/Alembic · AWS CDK. 100 % open-source libraries.
+**Stack:** React 19 + TypeScript + Three.js (custom octree renderer, Spark for 3DGS) · Python 3.12+ (tested on 3.13/3.14) + FastAPI + NumPy/SciPy, laspy, pyproj/PROJ, ezdxf, pye57, rasterio · SQLAlchemy/Alembic · AWS CDK. 100 % open-source libraries.
 
 | | |
 |---|---|

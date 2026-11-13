@@ -81,3 +81,33 @@ def test_synthetic_scan_finds_the_over_dig(metric):
     metric("As-built", "synthetic site: flat-area mean deviation", abs(flat["mean_m"]) * 1000, 50.0)
     assert flat["exceeding_individual"] > 0 and r.summary["pass"] is False
     assert abs(flat["mean_m"]) < 0.05  # mean still within ±50 mm: only the individual rule fails
+
+
+def test_boundary_point_on_gmax_does_not_wrap_or_crash():
+    verts = np.array([[0.0, 0.0, 1.0], [2.0, 0.0, 1.0], [2.0, 2.0, 1.0], [0.0, 2.0, 1.0]])
+    tris = np.array([[0, 1, 2], [0, 2, 3]])
+    xyz = np.array([
+        [0.5, 0.5, 1.0],
+        [1.5, 0.5, 1.0],
+        [0.5, 1.5, 1.0],
+        [1.5, 1.5, 1.0],
+        [2.0, 0.5, 1.1],  # on xmax: previously wrapped into cell (0, 1)
+        [2.0, 2.0, 1.2],  # on (xmax, ymax): previously caused bincount shape mismatch
+    ])
+    r = asbuilt.inspect(xyz, verts, tris)
+    assert r.cells["cols"] == 3 and r.cells["rows"] == 3
+    cell_0_1 = 1 * r.cells["cols"] + 0
+    assert r.cells["count"][cell_0_1] == 1
+    assert r.cells["mean_dz"][cell_0_1] == 0.0
+    assert r.summary["density"]["cells"] == 4
+    assert r.summary["density"]["cells_below_min"] == 0
+
+
+def test_all_flat_tin_has_empty_slope_summary():
+    verts = np.array([[0.0, 0.0, 3.0], [2.0, 0.0, 3.0], [2.0, 2.0, 3.0], [0.0, 2.0, 3.0]])
+    tris = np.array([[0, 1, 2], [0, 2, 3]])
+    xyz = np.array([[0.5, 0.5, 3.0], [1.5, 0.5, 3.0], [0.5, 1.5, 3.0], [1.5, 1.5, 3.0]])
+    r = asbuilt.inspect(xyz, verts, tris)
+    assert r.summary["slope"] == {"points": 0}
+    assert r.summary["flat"]["points"] == 4
+    assert r.summary["pass"] is True

@@ -60,6 +60,11 @@ export function Viewer() {
     const e = engine.current;
     if (!e) return;
     let cancelled = false;
+    const datasetIds = new Set(datasets.map((d) => d.id));
+    for (const id of e.layerIds()) {
+      // keep local-* offline layers managed by OfflinePanel
+      if (!id.startsWith("local-") && !datasetIds.has(id)) e.removeLayer(id);
+    }
     (async () => {
       for (const d of datasets) {
         if (d.status !== "ready") continue;

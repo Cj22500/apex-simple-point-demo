@@ -26,3 +26,24 @@ export function formatArea(m2: number): string {
 export function formatVolume(m3: number): string {
   return `${m3.toFixed(3)} m³`;
 }
+
+/** Format project CRS and vertical geoid model for display. */
+export function formatProjectCrs(crs?: string, geoidModel?: string): string {
+  const geoid = (geoidModel || "jpgeo2024").toUpperCase();
+  const norm = crs?.trim().toUpperCase();
+  const horiz =
+    !norm || norm === "EPSG:6677+EPSG:6695" || norm === "EPSG:6677+6695" || norm === "EPSG:6677"
+      ? "JGD2011 Zone IX (EPSG:6677)"
+      : crs!.trim();
+  return `${horiz} · ${geoid} heights`;
+}
+
+/** Trigger a browser CSV file download and revoke the temporary object URL. */
+export function downloadCsv(filename: string, csv: string): void {
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

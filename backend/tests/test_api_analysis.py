@@ -1,5 +1,7 @@
 """API: clean, profile (+DXF), volume, DEM, change, as-built, SIMA/DXF interop, reports."""
 import io
+import tempfile
+from pathlib import Path
 
 import ezdxf
 import numpy as np
@@ -127,3 +129,42 @@ def test_export_laz(ctx):
     c, h, _, ids = ctx
     r = c.get(f"/api/datasets/{ids['A']}/export.laz", headers=h)
     assert r.status_code == 200 and r.content[:4] == b"LASF"
+
+
+def test_profile_dxf_zero_length_returns_422(ctx):
+    c, h, _, ids = ctx
+    r = c.post(f"/api/datasets/{ids['A']}/profile.dxf", json={"a": L(125, 45), "b": L(125, 45)}, headers=h)
+    assert r.status_code == 422
+
+
+def test_export_laz_cleans_up_temp_dir(ctx, monkeypatch, tmp_path):
+    c, h, _, ids = ctx
+    created: list[Path] = []
+    real_mkdtemp = tempfile.mkdtemp
+
+    def track_mkdtemp():
+        d = Path(real_mkdtemp(dir=tmp_path))
+        created.append(d)
+        return str(d)
+
+    monkeypatch.setattr(tempfile, "mkdtemp", track_mkdtemp)
+    r = c.get(f"/api/datasets/{ids['A']}/export.laz", headers=h)
+    assert r.status_code == 200 and r.content[:4] == b"LASF"
+    assert len(created) == 1 and not created[0].exists()
+
+
+def test_export_laz_cleans_up_temp_dir_on_write_error(ctx, monkeypatch, tmp_path):
+    c, h, _, ids = ctx
+    created: list[Path] = []
+    real_mkdtemp = tempfile.mkdtemp
+
+    def track_mkdtemp():
+        d = Path(real_mkdtemp(dir=tmp_path))
+        created.append(d)
+        return str(d)
+
+    monkeypatch.setattr(tempfile, "mkdtemp", track_mkdtemp)
+    monkeypatch.setattr("app.core.pcio.write_points", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("write failed")))
+    with pytest.raises(RuntimeError, match="write failed"):
+        c.get(f"/api/datasets/{ids['A']}/export.laz", headers=h)
+    assert len(created) == 1 and not created[0].exists()

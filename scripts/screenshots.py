@@ -139,11 +139,14 @@ def main() -> None:
 
         # as-built inspection of the pit on cleaned epoch A
         show_only(page, "d => d.epoch === 'A' && d.meta?.derivedBy === 'clean'")
+        button(page, "As-built")
         run_job(page, "As-built check")
         look(page, L(40, 35, 1.5), 38)
+        wait(page, "() => !!document.querySelector('.asbuilt-report') && !document.body.innerText.includes('Checking design surface')")
         page.locator(".asbuilt-report").scroll_into_view_if_needed()
         page.wait_for_timeout(500)
         shot(page, "07-asbuilt-inspection.jpg")
+        button(page, "Navigate")
 
         # photo view (oblique RTK photo aligned with the cloud)
         show_only(page, "d => d.epoch === 'A' && d.sourceFormat === 'synthetic'")

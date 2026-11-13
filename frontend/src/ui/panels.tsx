@@ -1,7 +1,7 @@
 import { useShallow } from "zustand/react/shallow";
 import { api } from "../api/client";
 import type { ColorMode } from "../engine/PointCloudEngine";
-import { formatArea, formatDelta, formatGradeDegrees, formatGradePercent, formatLength } from "../geo/format";
+import { downloadCsv, formatArea, formatDelta, formatGradeDegrees, formatGradePercent, formatLength, formatProjectCrs } from "../geo/format";
 import { measure, polygonArea, polylineLength, toJgd } from "../geo/measure";
 import { useStore, type MeasurementItem, type Tool } from "../store";
 import { getEngine } from "./engineRef";
@@ -70,7 +70,7 @@ export function LayerPanel() {
       <section>
         <h3>Project</h3>
         <div className="muted small">{s.project?.name}</div>
-        <div className="muted small">JGD2011 Zone IX (EPSG:6677) · JPGEO2024 heights</div>
+        <div className="muted small">{formatProjectCrs(s.project?.crs, s.project?.geoidModel)}</div>
       </section>
       <section>
         <h3>Layers</h3>
@@ -349,13 +349,7 @@ export function MeasurementPanel() {
           {measurements.length > 0 && (
             <button
               className="ghost small"
-              onClick={() => {
-                const blob = new Blob([toCsv(measurements)], { type: "text/csv" });
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = "measurements.csv";
-                a.click();
-              }}
+              onClick={() => downloadCsv("measurements.csv", toCsv(measurements))}
             >
               CSV
             </button>

@@ -492,6 +492,10 @@ exports[`template snapshot 1`] = `
                 },
               },
               {
+                "Name": "SPL_DB_NAME",
+                "Value": "spl",
+              },
+              {
                 "Name": "SPL_DEV_AUTH",
                 "Value": "0",
               },
@@ -578,6 +582,20 @@ exports[`template snapshot 1`] = `
                         "Ref": "DbSecretAttachment7AED447C",
                       },
                       ":host::",
+                    ],
+                  ],
+                },
+              },
+              {
+                "Name": "SPL_DB_USER",
+                "ValueFrom": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "DbSecretAttachment7AED447C",
+                      },
+                      ":username::",
                     ],
                   ],
                 },
@@ -2652,6 +2670,10 @@ def handler(event, _ctx):
                 },
               },
               {
+                "Name": "SPL_DB_NAME",
+                "Value": "spl",
+              },
+              {
                 "Name": "SPL_DEV_AUTH",
                 "Value": "0",
               },
@@ -2741,6 +2763,20 @@ def handler(event, _ctx):
                         "Ref": "DbSecretAttachment7AED447C",
                       },
                       ":host::",
+                    ],
+                  ],
+                },
+              },
+              {
+                "Name": "SPL_DB_USER",
+                "ValueFrom": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "DbSecretAttachment7AED447C",
+                      },
+                      ":username::",
                     ],
                   ],
                 },

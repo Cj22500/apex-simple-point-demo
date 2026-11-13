@@ -52,6 +52,20 @@ def test_hierarchy_and_tiles(client):
     assert client.get(f"/api/datasets/{ds['id']}/nodes/rx9.bin", headers=h).status_code == 400
 
 
+def test_missing_hierarchy_returns_404(client):
+    h = auth(client)
+    ds = client.get(f"/api/projects/{client.ids['project']}/datasets", headers=h).json()[0]
+    hier = client.app.state.storage.octree_dir(ds["id"]) / "hierarchy.json"
+    bak = hier.with_suffix(".json.bak")
+    hier.rename(bak)
+    try:
+        r = client.get(f"/api/datasets/{ds['id']}/hierarchy", headers=h)
+        assert r.status_code == 404
+        assert r.json()["detail"] == "hierarchy not found"
+    finally:
+        bak.rename(hier)
+
+
 def test_tenant_isolation(client, metric):
     h_out = auth(client, "other@example.com")
     ds = client.get(f"/api/projects/{client.ids['project']}/datasets", headers=auth(client)).json()[0]
@@ -122,4 +136,62 @@ def test_upload_laz_and_reject_unknown(client, tmp_path):
 def test_s3_storage_raises_clear_error_at_startup(monkeypatch, tmp_path):
     monkeypatch.setenv("SPL_STORAGE", "s3")
     with pytest.raises(NotImplementedError, match="S3 storage adapter not implemented yet; the worker \\(app/worker\\.py\\) is S3-aware"):
+        create_app(data_dir=tmp_path, seed=False)
+
+
+def _clear_db_env(monkeypatch):
+    for var in ("SPL_DATABASE_URL", "SPL_DB_HOST", "SPL_DB_PORT", "SPL_DB_USER", "SPL_DB_PASSWORD", "SPL_DB_NAME"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_db_url_defaults_to_sqlite(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    _clear_db_env(monkeypatch)
+    app = create_app(data_dir=tmp_path, seed=False)
+    assert app.state.engine.url.drivername == "sqlite"
+    assert Path(app.state.engine.url.database) == tmp_path / "spl.sqlite3"
+
+
+def test_db_url_built_from_spl_db_env(monkeypatch, tmp_path):
+    _clear_db_env(monkeypatch)
+    seen = {}
+    monkeypatch.setattr("app.main.make_session_factory", lambda url: (seen.setdefault("url", url), (object(), object()))[1])
+    monkeypatch.setattr("app.main.Base.metadata.create_all", lambda _engine: None)
+
+    monkeypatch.setenv("SPL_DATABASE_URL", "")
+    monkeypatch.setenv("SPL_DB_HOST", "rds.example.internal")
+    monkeypatch.setenv("SPL_DB_USER", "adm@in")
+    monkeypatch.setenv("SPL_DB_PASSWORD", "p@ss:w/o?r#d%")
+    monkeypatch.setenv("SPL_DB_NAME", "spl")
+    create_app(data_dir=tmp_path, seed=False)
+    assert seen["url"] == "postgresql+psycopg://adm%40in:p%40ss%3Aw%2Fo%3Fr%23d%25@rds.example.internal:5432/spl"
+
+    seen.clear()
+    monkeypatch.setenv("SPL_DB_PORT", "5433")
+    create_app(data_dir=tmp_path, seed=False)
+    assert seen["url"] == "postgresql+psycopg://adm%40in:p%40ss%3Aw%2Fo%3Fr%23d%25@rds.example.internal:5433/spl"
+
+
+@pytest.mark.parametrize("missing", ["SPL_DB_USER", "SPL_DB_PASSWORD", "SPL_DB_NAME"])
+def test_db_url_missing_required_var_raises(monkeypatch, tmp_path, missing):
+    _clear_db_env(monkeypatch)
+    monkeypatch.setenv("SPL_DB_HOST", "rds.example.internal")
+    monkeypatch.setenv("SPL_DB_USER", "spl")
+    monkeypatch.setenv("SPL_DB_PASSWORD", "secret")
+    monkeypatch.setenv("SPL_DB_NAME", "spl")
+    monkeypatch.delenv(missing)
+    with pytest.raises(ValueError, match=missing):
+        create_app(data_dir=tmp_path, seed=False)
+
+
+@pytest.mark.parametrize("bad_port", ["notaport", "0", "65536"])
+def test_db_url_invalid_port_raises(monkeypatch, tmp_path, bad_port):
+    _clear_db_env(monkeypatch)
+    monkeypatch.setenv("SPL_DB_HOST", "rds.example.internal")
+    monkeypatch.setenv("SPL_DB_USER", "spl")
+    monkeypatch.setenv("SPL_DB_PASSWORD", "secret")
+    monkeypatch.setenv("SPL_DB_NAME", "spl")
+    monkeypatch.setenv("SPL_DB_PORT", bad_port)
+    with pytest.raises(ValueError, match="SPL_DB_PORT"):
         create_app(data_dir=tmp_path, seed=False)

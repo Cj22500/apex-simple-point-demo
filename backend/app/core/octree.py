@@ -87,11 +87,11 @@ def decode_node(buf: bytes, n: int, center, extras: list[str]) -> dict[str, np.n
 
 
 def build_octree(ps: PointSet, out_dir: Path, cfg: OctreeConfig = OctreeConfig()) -> dict:
-    out_dir = Path(out_dir)
-    (out_dir / "nodes").mkdir(parents=True, exist_ok=True)
     n_total = len(ps)
     if n_total == 0:
         raise ValueError("empty point cloud")
+    out_dir = Path(out_dir)
+    (out_dir / "nodes").mkdir(parents=True, exist_ok=True)
     extras = sorted(ps.extra)
 
     lo, hi = ps.bounds()

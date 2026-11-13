@@ -145,11 +145,13 @@ def handler(event, _ctx):
       SPL_RAW_BUCKET: raw.bucketName,
       SPL_TILES_BUCKET: tiles.bucketName,
       SPL_QUEUE_URL: queue.queueUrl,
+      SPL_DB_NAME: "spl",
       SPL_DEV_AUTH: "0",
       SPL_SEED: "0",
     };
     const secrets = {
       SPL_DB_HOST: ecs.Secret.fromSecretsManager(db.secret!, "host"),
+      SPL_DB_USER: ecs.Secret.fromSecretsManager(db.secret!, "username"),
       SPL_DB_PASSWORD: ecs.Secret.fromSecretsManager(db.secret!, "password"),
     };
 

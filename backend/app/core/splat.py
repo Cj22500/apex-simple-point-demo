@@ -25,14 +25,22 @@ def pointcloud_to_splat_ply(xyz: np.ndarray, rgb: np.ndarray | None, origin=(0.0
                             opacity: float = 0.95, seed: int = 0) -> bytes:
     xyz = np.asarray(xyz, dtype=np.float64)
     n = len(xyz)
+    if n == 0:
+        raise ValueError("empty point cloud")
+    if max_points < 1:
+        raise ValueError("max_points must be at least 1")
     if n > max_points:
         idx = np.sort(np.random.default_rng(seed).choice(n, max_points, replace=False))
         xyz = xyz[idx]
         rgb = None if rgb is None else np.asarray(rgb)[idx]
     rel = xyz - np.asarray(origin, dtype=np.float64)
     # Gaussian sigma ~ 0.6 x distance to the 4th neighbour: overlapping, but not blurry
-    d, _ = cKDTree(rel).query(rel, k=5, workers=-1)
-    sigma = np.clip(0.6 * d[:, 4], 0.005, 0.5)
+    k = min(5, len(rel))
+    if k == 1:
+        sigma = np.full(len(rel), 0.05, dtype=np.float64)
+    else:
+        d, _ = cKDTree(rel).query(rel, k=k, workers=-1)
+        sigma = np.clip(0.6 * d[:, -1], 0.005, 0.5)
     colors = (np.full((len(rel), 3), 180, np.uint8) if rgb is None else np.asarray(rgb, np.uint8)).astype(np.float64) / 255.0
     arr = np.zeros(len(rel), dtype=[(f, "<f4") for f in FIELDS])
     arr["x"], arr["y"], arr["z"] = rel.T

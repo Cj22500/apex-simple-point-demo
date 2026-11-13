@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { api, type Dataset } from "../api/client";
 import type { Vec3 } from "../engine/types";
-import { formatArea, formatVolume } from "../geo/format";
+import { downloadCsv, formatArea, formatVolume } from "../geo/format";
 import { fitScale, groundAt, niceStep } from "../geo/profile";
 import { useStore } from "../store";
 import { activeDataset, applyClip, loadProfile, useAnalysis, waitForJob, type ControlPoint } from "./analysisTools";
@@ -17,6 +17,10 @@ async function runDerivedJob(task: string, path: string, body: unknown, hide: st
   } catch (e) {
     useStore.getState().set({ error: String(e) });
   }
+}
+
+function safeDownload(path: string, filename: string, body?: unknown) {
+  void api.download(path, filename, body).catch((err) => useStore.getState().set({ error: String(err) }));
 }
 
 // ------------------------------------------------------------------ right panel
@@ -76,7 +80,7 @@ function SectionControls() {
       {section && ds && (
         <div className="row wrap" style={{ marginTop: 8 }}>
           <button className="ghost small" disabled={profileLoading} onClick={() => loadProfile()}>{profileLoading ? "Loading…" : "Refresh"}</button>
-          <button className="ghost small" onClick={() => api.download(`/datasets/${ds.id}/profile.dxf`, "profile.dxf", { a: section.a.slice(0, 2), b: section.b.slice(0, 2), halfWidth: section.halfWidth, binSize: 0.1 })}>
+          <button className="ghost small" onClick={() => safeDownload(`/datasets/${ds.id}/profile.dxf`, "profile.dxf", { a: section.a.slice(0, 2), b: section.b.slice(0, 2), halfWidth: section.halfWidth, binSize: 0.1 })}>
             Profile DXF
           </button>
           <button className="ghost small danger" onClick={() => { set({ section: null, profile: null }); applyClip(); }}>Clear</button>
@@ -95,6 +99,10 @@ function VolumeControls() {
   const [res, setRes] = useState<Record<string, number> | null>(null);
   const [busy, setBusy] = useState(false);
   const ds = activeDataset();
+  useEffect(() => {
+    setRef(null);
+    setRes(null);
+  }, [volumePolygon]);
   const reference = ref ?? Math.round(lowest * 1000) / 1000;
   const body = volumePolygon && { polygon: volumePolygon.map((p) => [p[0], p[1]]), reference, method, cellSize: cell };
   return (
@@ -116,7 +124,7 @@ function VolumeControls() {
               try { setRes(await api.post(`/datasets/${ds!.id}/volume`, body)); } catch (e) { useStore.getState().set({ error: String(e) }); }
               setBusy(false);
             }}>{busy ? "Computing…" : "Compute"}</button>
-            <button className="ghost small" disabled={!ds} onClick={() => api.download(`/datasets/${ds!.id}/dem.tif`, "dem_epsg6677.tif", body)}>DEM GeoTIFF</button>
+            <button className="ghost small" disabled={!ds} onClick={() => safeDownload(`/datasets/${ds!.id}/dem.tif`, "dem_epsg6677.tif", body)}>DEM GeoTIFF</button>
             <button className="ghost small danger" onClick={() => { set({ volumePolygon: null }); setRes(null); }}>Clear</button>
           </div>
           {res && (
@@ -168,6 +176,7 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
   };
 
   useEffect(() => {
+    setUploadErr(null);
     if (project) void loadDesign(project.id);
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -204,7 +213,7 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
             style={{ textDecoration: "none" }}
             onClick={(e) => {
               e.preventDefault();
-              void api.download(`/projects/${project.id}/design.dxf`, "design_tin.dxf");
+              safeDownload(`/projects/${project.id}/design.dxf`, "design_tin.dxf");
             }}
           >
             Download design TIN (DXF)
@@ -224,25 +233,7 @@ function AsBuiltControls({ ds, canWrite }: { ds: Dataset | null; canWrite: boole
               setUploadErr(null);
               setUploading(true);
               try {
-                const fd = new FormData();
-                fd.append("file", f);
-                const res = await fetch(`/api/projects/${project.id}/design`, {
-                  method: "POST",
-                  body: fd,
-                  headers: { Authorization: `Bearer ${api.token}` },
-                });
-                if (!res.ok) {
-                  let msg = res.statusText;
-                  const text = await res.text();
-                  try {
-                    const j = JSON.parse(text);
-                    msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail ?? j);
-                  } catch {
-                    if (text) msg = text;
-                  }
-                  throw new Error(msg);
-                }
-                const r = (await res.json()) as { vertices: number; triangles: number };
+                const r = await api.uploadFile<{ vertices: number; triangles: number }>(`/projects/${project.id}/design`, f);
                 setDesign({ source: f.name, vertices: r.vertices, triangles: r.triangles });
               } catch (err) {
                 setUploadErr(err instanceof Error ? err.message : String(err));
@@ -275,15 +266,15 @@ function ProcessingControls({ ds, datasets }: { ds: Dataset; datasets: Dataset[]
     setRefId(bestA);
     setCmpId(bestB);
   }, [bestA, bestB]);
-  const run = (task: string, path: string, body: unknown, after?: () => void) =>
-    runDerivedJob(task, path, body, [ds.id, refId, cmpId], after);
+  const run = (task: string, path: string, body: unknown, hide: string[], after?: () => void) =>
+    runDerivedJob(task, path, body, hide, after);
   return (
     <>
       <div className="row wrap">
-        <button className="ghost small" onClick={() => run("Cleaning", `/datasets/${ds.id}/clean`, { k: 16, nSigma: 1.0 })} title="Statistical Outlier Removal (k = 16, nσ = 1)">
+        <button className="ghost small" onClick={() => run("Cleaning", `/datasets/${ds.id}/clean`, { k: 16, nSigma: 1.0 }, [ds.id])} title="Statistical Outlier Removal (k = 16, nσ = 1)">
           Clean (SOR)
         </button>
-        <button className="ghost small" onClick={() => run("As-built", `/datasets/${ds.id}/asbuilt`, {}, () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))}
+        <button className="ghost small" onClick={() => run("As-built", `/datasets/${ds.id}/asbuilt`, {}, [ds.id], () => useStore.getState().set({ colorMode: "change", dzRange: 0.15 }))}
           title="Compare with the design surface using MLIT 出来形 tolerances">
           As-built check
         </button>
@@ -295,7 +286,7 @@ function ProcessingControls({ ds, datasets }: { ds: Dataset; datasets: Dataset[]
         <select value={cmpId} onChange={(e) => setCmpId(e.target.value)}>{epochs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
       </div>
       <button className="ghost small" disabled={!refId || !cmpId || refId === cmpId}
-        onClick={() => run("Change detection", "/change", { datasetA: refId, datasetB: cmpId }, () => useStore.getState().set({ colorMode: "change", dzRange: 0.05 }))}>
+        onClick={() => run("Change detection", "/change", { datasetA: refId, datasetB: cmpId }, [ds.id, refId, cmpId], () => useStore.getState().set({ colorMode: "change", dzRange: 0.05 }))}>
         Change detection (ΔZ)
       </button>
     </>
@@ -321,14 +312,19 @@ function Reports({ ds }: { ds: Dataset | null }) {
     );
   }
   if (rep.kind === "asbuilt") {
-    const row = (name: string, r: any, tol: any) => (
-      <tr key={name}>
-        <td>{name}</td>
-        <td>{r.points?.toLocaleString() ?? 0}</td>
-        <td className={r.mean_ok ? "ok" : "warn"}>{mm(r.mean_m)}<br /><span className="muted">±{tol.mean * 1000}</span></td>
-        <td className={r.exceeding_individual ? "warn" : "ok"}>{r.exceeding_individual ?? 0}<br /><span className="muted">±{tol.individual * 1000}</span></td>
-      </tr>
-    );
+    const row = (name: string, r: any, tol: any) => {
+      const empty = !r?.points;
+      const meanCls = empty ? "muted" : r.mean_ok ? "ok" : "warn";
+      const excCls = empty ? "muted" : r.exceeding_individual ? "warn" : "ok";
+      return (
+        <tr key={name}>
+          <td>{name}</td>
+          <td>{r?.points?.toLocaleString() ?? 0}</td>
+          <td className={meanCls}>{mm(r?.mean_m)}<br /><span className="muted">±{tol.mean * 1000}</span></td>
+          <td className={excCls}>{r?.exceeding_individual ?? 0}<br /><span className="muted">±{tol.individual * 1000}</span></td>
+        </tr>
+      );
+    };
     return (
       <div className="asbuilt-report" style={{ marginTop: 8 }}>
         <div className={`verdict ${rep.pass ? "pass" : "fail"}`}>{rep.pass ? "PASS" : "FAIL"} · 出来形 (MLIT 面管理)</div>
@@ -359,10 +355,10 @@ function ExchangeControls() {
       <h3>Exchange (SIMA / DXF / LAS)</h3>
       <label className="row check"><input type="checkbox" checked={showControlPoints} onChange={(e) => set({ showControlPoints: e.target.checked })} /> Show 基準点 (control points)</label>
       <div className="row wrap">
-        <button className="ghost small" onClick={() => api.download(`/projects/${project.id}/export.sim`, "survey_points.sim")}>Export SIMA</button>
-        <button className="ghost small" onClick={() => api.download(`/projects/${project.id}/export.dxf`, "survey_plan.dxf")}>Export DXF plan</button>
-        <button className="ghost small" onClick={() => api.download(`/projects/${project.id}/design.dxf`, "design_tin.dxf")}>Design TIN DXF</button>
-        {ds && <button className="ghost small" onClick={() => api.download(`/datasets/${ds.id}/export.laz`, `${ds.name}.laz`)}>Download LAZ</button>}
+        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/export.sim`, "survey_points.sim")}>Export SIMA</button>
+        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/export.dxf`, "survey_plan.dxf")}>Export DXF plan</button>
+        <button className="ghost small" onClick={() => safeDownload(`/projects/${project.id}/design.dxf`, "design_tin.dxf")}>Design TIN DXF</button>
+        {ds && <button className="ghost small" onClick={() => safeDownload(`/datasets/${ds.id}/export.laz`, `${ds.name}.laz`)}>Download LAZ</button>}
       </div>
       {project.role !== "viewer" && (
         <label className="upload">
@@ -370,15 +366,16 @@ function ExchangeControls() {
           <input type="file" accept=".sim,.txt" onChange={async (e) => {
             const f = e.target.files?.[0];
             if (!f) return;
-            const fd = new FormData();
-            fd.append("file", f);
             try {
-              const r = await fetch(`/api/projects/${project.id}/import/sima`, { method: "POST", body: fd, headers: { Authorization: `Bearer ${api.token}` } }).then((x) => x.json());
+              const r = await api.uploadFile<{ siteName?: string; points: number; parcels: number; encoding: string; warnings?: unknown[] }>(
+                `/projects/${project.id}/import/sima`,
+                f,
+              );
               setMsg(`${r.siteName || f.name}: ${r.points} points, ${r.parcels} parcels (${r.encoding})${r.warnings?.length ? ` · ${r.warnings.length} warnings` : ""}`);
               const saved = await api.listMeasurements(project.id);
               useStore.getState().set({ measurements: saved.map((m) => ({ id: m.id, kind: m.kind, label: m.label, points: m.points, savedId: m.id })) });
             } catch (err) {
-              setMsg(String(err));
+              setMsg(err instanceof Error ? err.message : String(err));
             } finally {
               e.target.value = "";
             }
@@ -456,10 +453,7 @@ export function ProfileDrawer() {
         <div className="seg">{[1, 2, 5, 10].map((v) => <button key={v} className={v === ve ? "active" : ""} onClick={() => setVe(v)}>{v}×</button>)}</div>
         <button className="ghost small" onClick={() => {
           const csv = ["station_m,elevation_m", ...profile.ground.map(([s, z]) => `${s.toFixed(4)},${z.toFixed(4)}`)].join("\n");
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-          a.download = "profile.csv";
-          a.click();
+          downloadCsv("profile.csv", csv);
         }}>CSV</button>
         <button className="ghost small" onClick={() => useAnalysis.getState().set({ profile: null })}>✕</button>
       </div>

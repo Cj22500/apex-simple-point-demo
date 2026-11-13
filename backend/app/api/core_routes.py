@@ -118,6 +118,8 @@ def get_hierarchy(dataset_id: str, request: Request, user: User = Depends(curren
     if ds.status != "ready":
         raise HTTPException(409, f"dataset is {ds.status}")
     path = request.app.state.storage.octree_dir(dataset_id) / "hierarchy.json"
+    if not path.exists():
+        raise HTTPException(404, "hierarchy not found")
     return FileResponse(path, media_type="application/json")
 
 

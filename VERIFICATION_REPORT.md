@@ -1,15 +1,15 @@
 # Verification report
 
-Generated 2026-11-13 09:30 by `scripts/verify.py`. Ground truth is independent of the code under test: analytic geometry, 50-digit decimal arithmetic, or GSI (国土地理院) official calculators. Tolerances come from `docs/specs/`.
+Generated 2026-11-13 11:44 by `scripts/verify.py`. Ground truth is independent of the code under test: analytic geometry, 50-digit decimal arithmetic, or GSI (国土地理院) official calculators. Tolerances come from `docs/specs/`.
 
 ## Test suites
 
 | Suite | Result | Summary | Time |
 |---|---|---|---|
-| Backend (pytest) | pass | 99 passed in 52.42s | 53.8 s |
-| Frontend (vitest) | pass | 50 passed (50) | 1.9 s |
-| Frontend (tsc) | pass | no type errors | 1.4 s |
-| Infra (CDK snapshot) | pass | 10 passed (10) | 3.8 s |
+| Backend (pytest) | pass | 124 passed in 57.68s | 59.2 s |
+| Frontend (vitest) | pass | 57 passed (57) | 2.2 s |
+| Frontend (tsc) | pass | no type errors | 1.7 s |
+| Infra (CDK snapshot) | pass | 11 passed (11) | 6.4 s |
 
 ## Measured accuracy
 

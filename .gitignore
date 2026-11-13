@@ -23,6 +23,7 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+.claude/
 
 # Python packaging artifacts
 *.egg-info/

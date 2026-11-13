@@ -73,6 +73,8 @@ def test_hierarchy_children_and_sizes(built):
     assert json.loads((out / "hierarchy.json").read_text())["format"] == "spl-octree-1"
 
 
-def test_rejects_empty():
-    with pytest.raises(ValueError):
-        build_octree(PointSet(np.empty((0, 3))), "unused")
+def test_rejects_empty(tmp_path):
+    out = tmp_path / "unused"
+    with pytest.raises(ValueError, match="empty point cloud"):
+        build_octree(PointSet(np.empty((0, 3))), out)
+    assert not out.exists()

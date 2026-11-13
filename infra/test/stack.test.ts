@@ -32,6 +32,21 @@ describe("security", () => {
       expect(env.find((e) => e.Name === "SPL_DEV_AUTH")?.Value).toBe("0");
     }
   });
+
+  it("ECS tasks receive all required RDS connection env vars and secrets", () => {
+    const defs = t.findResources("AWS::ECS::TaskDefinition");
+    const apiEntry = Object.entries(defs).find(([id]) => id.startsWith("ApiTaskDef"));
+    expect(apiEntry).toBeDefined();
+    for (const d of Object.values(defs)) {
+      const c = (d as any).Properties.ContainerDefinitions[0];
+      const env = c.Environment as { Name: string; Value: unknown }[];
+      const secrets = c.Secrets as { Name: string; ValueFrom: unknown }[];
+      expect(env.find((e) => e.Name === "SPL_DB_NAME")?.Value).toBe("spl");
+      expect(JSON.stringify(secrets.find((s) => s.Name === "SPL_DB_HOST")?.ValueFrom)).toContain(":host::");
+      expect(JSON.stringify(secrets.find((s) => s.Name === "SPL_DB_USER")?.ValueFrom)).toContain(":username::");
+      expect(JSON.stringify(secrets.find((s) => s.Name === "SPL_DB_PASSWORD")?.ValueFrom)).toContain(":password::");
+    }
+  });
 });
 
 describe("async processing", () => {

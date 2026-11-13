@@ -30,12 +30,15 @@ export function PhotoPanel() {
     if (!project) return;
     let stop = false;
     const load = async () => {
-      // photos are rendered by a background job on first start: poll until they appear
+      // photos are rendered by a background job on first start: poll until the batch count stabilizes
+      let prevLen = -1;
       for (let i = 0; i < 60 && !stop; i++) {
         const list = await api.get<Photo[]>(`/projects/${project.id}/photos`).catch(() => []);
-        if (list.length) {
+        if (stop) return;
+        if (list.length > 0) {
+          if (list.length === prevLen) return;
+          prevLen = list.length;
           usePhotos.getState().set({ photos: list });
-          return;
         }
         await new Promise((r) => setTimeout(r, 2000));
       }

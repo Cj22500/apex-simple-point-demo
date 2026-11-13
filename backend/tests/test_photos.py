@@ -73,3 +73,50 @@ def test_photo_without_gps_is_rejected():
     photos.Image.new("RGB", (10, 10)).save(buf, "JPEG")
     with pytest.raises(Exception):
         photos.read_pose(buf.getvalue())
+
+
+def test_seed_photos_writes_files_before_single_commit_and_cleans_up_on_error(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from sqlalchemy.orm import Session
+    from app.api.photo_routes import seed_photos
+    from app.core.pointset import PointSet
+    from app.db import Base, Photo, Project, Tenant, make_session_factory
+    from app.storage import LocalStorage
+
+    engine, sessions = make_session_factory(f"sqlite:///{(tmp_path / 'db.sqlite3').as_posix()}")
+    Base.metadata.create_all(engine)
+    with sessions() as s:
+        t = Tenant(name="t")
+        s.add(t)
+        s.flush()
+        p = Project(tenant_id=t.id, name="p")
+        s.add(p)
+        s.commit()
+        tid, pid = t.id, p.id
+
+    storage = LocalStorage(tmp_path)
+    app_state = SimpleNamespace(sessions=sessions, storage=storage)
+    tiny = photos.Image.new("RGB", (4, 4))
+    monkeypatch.setattr(photos, "render_photo", lambda *_args, **_kwargs: tiny)
+    scan = SimpleNamespace(points=PointSet(np.zeros((1, 3)), rgb=np.zeros((1, 3), np.uint8)))
+
+    files_at_commit = []
+    real_commit = Session.commit
+
+    def spy_commit(self):
+        files_at_commit.append(len(list((tmp_path / "photos").glob("*.jpg"))))
+        return real_commit(self)
+
+    monkeypatch.setattr(Session, "commit", spy_commit)
+    res = seed_photos(app_state, tid, pid, scan)
+    assert res == {"photos": 12}
+    assert files_at_commit == [12]
+    with sessions() as s:
+        assert s.query(Photo).count() == 12
+
+    monkeypatch.setattr(Session, "commit", lambda _self: (_ for _ in ()).throw(RuntimeError("commit failed")))
+    with pytest.raises(RuntimeError, match="commit failed"):
+        seed_photos(app_state, tid, pid, scan)
+    assert len(list((tmp_path / "photos").glob("*.jpg"))) == 12
+    with sessions() as s:
+        assert s.query(Photo).count() == 12

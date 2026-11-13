@@ -121,14 +121,15 @@ def inspect(xyz: np.ndarray, verts: np.ndarray, tris: np.ndarray, tolerances: di
     design_area_xy = V[:, :2]
     gmin = np.floor(design_area_xy.min(axis=0) / GRID) * GRID
     gmax = design_area_xy.max(axis=0)
-    cols = int(np.ceil((gmax[0] - gmin[0]) / GRID))
-    rows = int(np.ceil((gmax[1] - gmin[1]) / GRID))
+    cols = int(np.ceil((gmax[0] - gmin[0]) / GRID)) + 1
+    rows = int(np.ceil((gmax[1] - gmin[1]) / GRID)) + 1
     centres = np.stack(np.meshgrid(gmin[0] + (np.arange(cols) + 0.5) * GRID, gmin[1] + (np.arange(rows) + 0.5) * GRID), -1).reshape(-1, 2)
     cell_in = _cells_inside_tin(centres, V, tris)
     ij = np.floor((P[index] - gmin) / GRID).astype(np.int64)
-    flat_ids = ij[:, 1] * cols + ij[:, 0]
+    ok = (ij[:, 0] >= 0) & (ij[:, 0] < cols) & (ij[:, 1] >= 0) & (ij[:, 1] < rows)
+    flat_ids = ij[ok, 1] * cols + ij[ok, 0]
     counts = np.bincount(flat_ids, minlength=rows * cols)
-    sums = np.bincount(flat_ids, weights=dz[index], minlength=rows * cols)
+    sums = np.bincount(flat_ids, weights=dz[index][ok], minlength=rows * cols)
     with np.errstate(invalid="ignore", divide="ignore"):
         mean_cell = np.where(counts > 0, sums / counts, np.nan)
     empty = cell_in & (counts < MIN_POINTS_PER_CELL)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from app import services
 from app.api.core_routes import dataset_for
@@ -67,20 +69,20 @@ class ProfileRequest(BaseModel):
     groundOnly: bool = True
 
 
-def _profile(request: Request, ds: Dataset, req: ProfileRequest):
+def _profile_or_422(request: Request, ds: Dataset, req: ProfileRequest):
     ps = request.app.state.storage.load_arrays(ds.id)
     cls = ps.classification if req.groundOnly and ps.classification is not None else None
-    return extract_profile(np.asarray(ps.xyz), req.a, req.b, req.halfWidth, req.binSize, 0.1, cls)
+    try:
+        return extract_profile(np.asarray(ps.xyz), req.a, req.b, req.halfWidth, req.binSize, 0.1, cls)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.post("/datasets/{dataset_id}/profile")
 def profile(dataset_id: str, req: ProfileRequest, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     ds = dataset_for(db, user, dataset_id)
     _ready(ds)
-    try:
-        p = _profile(request, ds, req)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+    p = _profile_or_422(request, ds, req)
     n = len(p.station)
     pick = np.arange(n) if n <= req.maxPoints else np.sort(np.random.default_rng(0).choice(n, req.maxPoints, replace=False))
     return {
@@ -97,7 +99,7 @@ def profile(dataset_id: str, req: ProfileRequest, request: Request, user: User =
 def profile_dxf(dataset_id: str, req: ProfileRequest, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     ds = dataset_for(db, user, dataset_id)
     _ready(ds)
-    p = _profile(request, ds, req)
+    p = _profile_or_422(request, ds, req)
     data = dxf.profile_dxf(p.ground_station, p.ground_z, title=f"{ds.name} section ({p.length:.2f} m)")
     return Response(data, media_type="application/dxf", headers={"Content-Disposition": 'attachment; filename="profile.dxf"'})
 
@@ -266,6 +268,16 @@ def export_points(dataset_id: str, ext: str, request: Request, user: User = Depe
     ds = dataset_for(db, user, dataset_id)
     _ready(ds)
     ps = request.app.state.storage.load_arrays(ds.id, mmap=False)
-    tmp = Path(tempfile.mkdtemp()) / f"{ds.id}.{ext}"
-    pcio.write_points(ps, tmp)
-    return FileResponse(tmp, filename=f"{ds.name}.{ext}".replace("/", "_"), media_type="application/octet-stream")
+    tmpdir = Path(tempfile.mkdtemp())
+    tmp = tmpdir / f"{ds.id}.{ext}"
+    try:
+        pcio.write_points(ps, tmp)
+    except Exception:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise
+    return FileResponse(
+        tmp,
+        filename=f"{ds.name}.{ext}".replace("/", "_"),
+        media_type="application/octet-stream",
+        background=BackgroundTask(shutil.rmtree, tmpdir, True),
+    )

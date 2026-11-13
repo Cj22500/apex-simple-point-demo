@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import io
+import uuid
 
 import numpy as np
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -48,10 +49,17 @@ async def upload_photo(project_id: str, request: Request, file: UploadFile = Fil
         pose = photos.read_pose(data)
     except Exception as exc:  # noqa: BLE001  (bad EXIF is a client error)
         raise HTTPException(400, f"cannot read photo position: {exc}") from exc
-    p = Photo(tenant_id=user.tenant_id, project_id=project_id, filename=file.filename or "photo.jpg", pose=pose.to_dict())
-    db.add(p)
-    db.commit()
-    request.app.state.storage.photo_path(p.id).write_bytes(data)
+    photo_id = uuid.uuid4().hex
+    path = request.app.state.storage.photo_path(photo_id)
+    path.write_bytes(data)
+    p = Photo(id=photo_id, tenant_id=user.tenant_id, project_id=project_id, filename=file.filename or "photo.jpg", pose=pose.to_dict())
+    try:
+        db.add(p)
+        db.commit()
+    except Exception:
+        db.rollback()
+        path.unlink(missing_ok=True)
+        raise
     return photo_json(p)
 
 
@@ -74,15 +82,19 @@ def photos_seeing(project_id: str, req: SeeRequest, user: User = Depends(current
 
 
 @router.get("/datasets/{dataset_id}/splat.ply")
-def splat_ply(dataset_id: str, request: Request, ox: float, oy: float, oz: float = 0.0, maxPoints: int = 400_000,
+def splat_ply(dataset_id: str, request: Request, ox: float, oy: float, oz: float = 0.0,
+              maxPoints: int = Query(400_000, ge=5, le=2_000_000),
               user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     """Point cloud -> 3D Gaussian Splatting PLY (INRIA layout), positions relative to (ox, oy, oz)."""
     ds = dataset_for(db, user, dataset_id)
     if ds.status != "ready":
         raise HTTPException(409, f"dataset is {ds.status}")
     ps = request.app.state.storage.load_arrays(ds.id)
-    data = splat.pointcloud_to_splat_ply(np.asarray(ps.xyz), None if ps.rgb is None else np.asarray(ps.rgb),
-                                         origin=(ox, oy, oz), max_points=min(maxPoints, 2_000_000))
+    try:
+        data = splat.pointcloud_to_splat_ply(np.asarray(ps.xyz), None if ps.rgb is None else np.asarray(ps.rgb),
+                                             origin=(ox, oy, oz), max_points=maxPoints)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return Response(data, media_type="application/octet-stream", headers={"Content-Disposition": 'attachment; filename="splat.ply"'})
 
 
@@ -90,20 +102,29 @@ def seed_photos(app_state, tenant_id: str, project_id: str, scan) -> dict:
     """Render the 12-shot synthetic flight from the scan and store them as uploaded photos would be."""
     from app.synthetic import site
 
-    made = 0
     xyz, rgb = scan.points.xyz, scan.points.rgb
-    for i, (E, N, H, yaw, pitch) in enumerate(photos.flight_plan(site.SITE_E0, site.SITE_N0, site.PAD_Z + 40.0)):
-        pose = photos.pose_from_plane(E, N, H, yaw, pitch, 0.0, 1200, 900, 73.7)
-        img = photos.render_photo(pose, xyz, rgb, splat=3)
-        jpeg = photos.encode_jpeg(img, pose)
-        read_back = photos.read_pose(jpeg)  # store what ingest would see, not the hidden truth
+    rows: list[Photo] = []
+    written: list = []
+    try:
+        for i, (E, N, H, yaw, pitch) in enumerate(photos.flight_plan(site.SITE_E0, site.SITE_N0, site.PAD_Z + 40.0)):
+            pose = photos.pose_from_plane(E, N, H, yaw, pitch, 0.0, 1200, 900, 73.7)
+            img = photos.render_photo(pose, xyz, rgb, splat=3)
+            jpeg = photos.encode_jpeg(img, pose)
+            read_back = photos.read_pose(jpeg)  # store what ingest would see, not the hidden truth
+            photo_id = uuid.uuid4().hex
+            path = app_state.storage.photo_path(photo_id)
+            path.write_bytes(jpeg)
+            written.append(path)
+            rows.append(Photo(id=photo_id, tenant_id=tenant_id, project_id=project_id,
+                              filename=f"DJI_{i + 1:04d}.JPG", pose=read_back.to_dict()))
         with app_state.sessions() as s:
-            p = Photo(tenant_id=tenant_id, project_id=project_id, filename=f"DJI_{i + 1:04d}.JPG", pose=read_back.to_dict())
-            s.add(p)
+            s.add_all(rows)
             s.commit()
-            app_state.storage.photo_path(p.id).write_bytes(jpeg)
-        made += 1
-    return {"photos": made}
+    except Exception:
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
+    return {"photos": len(rows)}
 
 
 __all__ = ["router", "seed_photos", "io"]

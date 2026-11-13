@@ -45,9 +45,25 @@ def test_upload_photo_with_exif(ctx):
     jpeg = photos.encode_jpeg(photos.Image.new("RGB", (400, 300)), pose)
     r = c.post(f"/api/projects/{pid}/photos", headers=h, files={"file": ("mine.jpg", jpeg)})
     assert r.status_code == 201 and r.json()["center"] == pytest.approx([pose.E, pose.N, pose.H], abs=1e-3)
+    saved = c.app.state.storage.photo_path(r.json()["id"])
+    assert saved.exists() and saved.read_bytes() == jpeg
     buf = io.BytesIO()
     photos.Image.new("RGB", (8, 8)).save(buf, "JPEG")
     assert c.post(f"/api/projects/{pid}/photos", headers=h, files={"file": ("nogps.jpg", buf.getvalue())}).status_code == 400
+
+
+def test_upload_photo_cleans_up_file_on_commit_error(ctx, monkeypatch):
+    from sqlalchemy.orm import Session
+
+    c, h, _, pid = ctx
+    photos_dir = c.app.state.storage.root / "photos"
+    before = set(photos_dir.glob("*.jpg"))
+    pose = photos.pose_from_plane(site.SITE_E0 + 50, site.SITE_N0 + 50, 30.0, 10.0, -80.0, 0.0, 400, 300, 60.0)
+    jpeg = photos.encode_jpeg(photos.Image.new("RGB", (400, 300)), pose)
+    monkeypatch.setattr(Session, "commit", lambda _self: (_ for _ in ()).throw(RuntimeError("db down")))
+    with pytest.raises(RuntimeError, match="db down"):
+        c.post(f"/api/projects/{pid}/photos", headers=h, files={"file": ("fail.jpg", jpeg)})
+    assert set(photos_dir.glob("*.jpg")) == before
 
 
 def test_splat_ply_layout_and_values(metric):
@@ -74,3 +90,12 @@ def test_splat_endpoint(ctx):
     r = c.get(f"/api/datasets/{ds['id']}/splat.ply?ox={site.SITE_E0 - 1}&oy={site.SITE_N0 - 1}&maxPoints=5000", headers=h)
     assert r.status_code == 200 and r.content.startswith(b"ply")
     assert PlyData.read(io.BytesIO(r.content))["vertex"].count == 5000
+
+
+def test_splat_endpoint_rejects_invalid_max_points(ctx):
+    c, h, _, pid = ctx
+    ds = c.get(f"/api/projects/{pid}/datasets", headers=h).json()[0]
+    r = c.get(f"/api/datasets/{ds['id']}/splat.ply?ox={site.SITE_E0 - 1}&oy={site.SITE_N0 - 1}&maxPoints=0", headers=h)
+    assert r.status_code == 422
+    r_too_many = c.get(f"/api/datasets/{ds['id']}/splat.ply?ox={site.SITE_E0 - 1}&oy={site.SITE_N0 - 1}&maxPoints=2000001", headers=h)
+    assert r_too_many.status_code == 422

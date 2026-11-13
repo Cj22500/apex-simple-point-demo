@@ -42,5 +42,10 @@ export class SplatLayer {
       this.mesh = null;
       this.count = 0;
     }
+    if (this.spark) {
+      this.scene.remove(this.spark);
+      this.spark.dispose();
+      this.spark = null;
+    }
   }
 }
