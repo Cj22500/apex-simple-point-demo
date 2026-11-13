@@ -36,6 +36,7 @@ Screenshots are produced by `scripts/screenshots.py`, which drives the running a
 - **3D Gaussian Splatting:** point cloud → 3DGS PLY (INRIA layout), rendered with Spark in the same scene.
 - **Offline mode:** open a local LAS/LAZ entirely in the browser (laz-perf WASM + TypeScript octree in a Web Worker, no upload).
 - **Platform:** multi-tenant projects with owner/editor/viewer roles, background jobs, derived-dataset lineage, Alembic migrations. AWS CDK stack (S3 → Lambda → SQS → Fargate Spot, CloudFront, RDS, least-privilege IAM, budget alarm) and Docker.
+- **Bilingual (EN / 日本語):** live toolbar switcher (`localStorage`), localized control points (`CP-1`–`CP-6` / `基準点1`–`6`), 3D overlays, client-translated structured API/worker error codes, UTF-8 BOM CSV, CJK DXF text styles, and `?lang=en|ja` CP932-safe SIMA exports.
 
 The synthetic site is a deterministic ~3 M-point TLS scan of a construction site near Toyosu, Tokyo, in JGD2011 Zone IX. It has analytically known features: a 1:0.5 pit (474 m³), a frustum stockpile (351.858 m³), a 5.000 % ramp, a building, a retaining wall, 6 control points (基準点), a −45 mm settlement bowl in epoch B, a −200 mm over-dig defect, 3 mm noise and 0.5 % outliers. Every test compares against these exact values.
 
@@ -84,7 +85,7 @@ This runs pytest (backend), vitest + tsc (frontend) and the CDK assertion tests,
 
 ```
 backend/    FastAPI app (app/core = algorithms, app/api = routes), tests, Alembic migrations
-frontend/   React + Three.js viewer (src/engine = renderer, src/geo = survey maths, src/offline = WASM path)
+frontend/   React + Three.js viewer (src/engine = renderer, src/geo = survey maths, src/offline = WASM path, src/i18n = EN/JA localization)
 shared/     golden test vectors used by BOTH pytest and vitest
 infra/      AWS CDK stack + assertion tests
 docker/     Dockerfiles + nginx; docker-compose.yml at the root

@@ -29,6 +29,8 @@
 
 Japanese axis convention: JGD2011 plane coordinates are **X = north, Y = east**. Internally everything is `[E, N, H]`, and the swap happens only at the SIMA/DXF/UI boundaries (tested).
 
+Bilingual localization (`EN | 日本語`): UI labels, seeded/derived dataset names, control points (`CP-1`–`CP-6` vs `基準点1`–`6`), 3D overlays, and structured API/worker errors switch live in `frontend/src/i18n/` without mutating SQLite seed data; SIMA/DXF exports accept `?lang=en|ja` (with CP932 symbol transliteration in `sima.py` and CJK text styles in `dxf.py`), and CSV downloads prepend a UTF-8 BOM.
+
 ## Octree format (`spl-octree-1`)
 
 Potree-style grid subsampling: a node keeps one point per cell of a 128³ lattice over its cube, and the rest go to its 8 children; a node with ≤ 20 000 remaining points is a leaf. Every point is stored exactly once. Node binary (little endian, n points, k float32 extras):
@@ -51,6 +53,7 @@ All sections are naturally aligned, so the browser decodes them with typed-array
 | `core/asbuilt.py` | MLIT 出来形 surface inspection |
 | `core/sima.py`, `core/dxf.py` | interop |
 | `core/photos.py`, `core/splat.py` | camera model, EXIF/XMP, 3DGS export |
+| `errors.py` | structured `CodedHTTPException` error codes & params |
 | `db.py`, `auth.py`, `services.py` | multi-tenant schema, roles, jobs |
 | `worker.py` | AWS SQS → S3 → octree → tiles worker |
 
